@@ -1,0 +1,3 @@
+include README.md LICENSE requirements.txt
+exclude *.pyc *.pyo
+recursive-exclude __pycache__ *
