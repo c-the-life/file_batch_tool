@@ -11,15 +11,22 @@
 ## 🚀 安装方式
 ```bash
 # 方式1：通过pip安装
-pip install file-batch-tool
+python -m pip install file-batch-tool
 
 # 方式2：从源码安装
 git clone https://gitee.com/the-life/file_batch_tool.git
 cd file_batch_tool
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-## 📖 使用示例
+# 📖 使用示例
+##使用之前
+找到 Python 的 Scripts 路径，比如：
+C:\Users\LX\AppData\Local\Programs\Python\Python3x\Scripts
+把这个路径添加到系统环境变量 PATH 里。
+重新打开 PowerShell，执行：
+pip install -e .
+之后就可以直接运行以下命令
 ### 批量重命名
 ```bash
 # 给所有文件添加前缀 "2024_"
