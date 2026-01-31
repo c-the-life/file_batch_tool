@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.env
+build/
+dist/
+*.spec
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 测试文件
+test/
+classified/
+*.zip
