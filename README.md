@@ -42,6 +42,7 @@ pip install -r requirements.txt
 bash
 运行
 python main.py
+```
 📸 界面预览
 主界面（多标签页布局）
 
