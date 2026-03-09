@@ -41,9 +41,9 @@ git clone https://github.com/c-the-life/file_batch_tool.git
 cd file_batch_tool
 
 # 安装核心依赖
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 # 运行程序
-python main.py
+python file-batch-tool.py
 ```
 ## 📸 界面预览
 主界面（多标签页布局）
