@@ -38,8 +38,11 @@
 
 ### 💻 方式二：源码运行
 ```bash
-# 克隆项目
-git clone https://gitee.com/the-life/file_batch_tool.git
+# 克隆项目（支持 Gitee/GitHub）
+git clone https://github.com/c-the-life/file_batch_tool.git
+# 或者使用 Gitee
+# git clone https://gitee.com/the-life/file_batch_tool.git
+
 cd file_batch_tool
 
 # 安装依赖
