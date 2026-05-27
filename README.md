@@ -54,9 +54,6 @@ pip install -r requirements.txt
 python file-batch-tool.py
 ```
 
-## 📸 界面预览
-
-![主界面](screenshots/main.png)
 
 ## 💡 使用示例
 
