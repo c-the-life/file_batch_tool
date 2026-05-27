@@ -189,36 +189,43 @@ def batch_convert_image(dir_path, to_format, log_callback=None):
 
 def batch_compress(dir_path, output="", exclude="", log_callback=None):
     def log(msg):
-        if log_callback:
-            log_callback(msg)
-        else:
-            print(msg)
+        try:
+            if log_callback:
+                log_callback(msg)
+            else:
+                print(msg)
+        except UnicodeEncodeError:
+            if log_callback:
+                log_callback(msg.encode('ascii', 'replace').decode('ascii'))
+            else:
+                print(msg.encode('ascii', 'replace').decode('ascii'))
 
     all_files, input_type = parse_input_path(dir_path)
     
     if input_type == "invalid":
-        log(f"❌ 路径 {dir_path} 不是有效文件或目录")
+        log(f"Error: 路径 {dir_path} 不是有效文件或目录")
         return False
 
     if exclude:
-        exclude_exts = [ext.strip().lower() for ext in exclude.split(",")]
+        exclude_exts = [ext.strip().lower() for ext in exclude.split(",") if ext.strip()]
         file_list = [f for f in all_files if f.suffix.lstrip(".").lower() not in exclude_exts]
     else:
         file_list = all_files
 
     file_count = len(file_list)
     if file_count == 0:
-        log(f"❌ 未找到可压缩的文件")
+        log(f"Error: 未找到可压缩的文件")
         return False
 
     if input_type == "single":
-        log(f"📦 处理单个文件：{file_list[0].name}")
+        log(f"Info: 处理单个文件：{file_list[0].name}")
         default_name = f"{file_list[0].parent / file_list[0].stem}_compressed.zip"
     elif input_type == "multiple":
-        log(f"📦 开始批量压缩文件，共找到 {file_count} 个文件")
-        default_name = f"{dir_path.split(FILE_LIST_SEPARATOR)[0]}_compressed.zip"
+        log(f"Info: 开始批量压缩文件，共找到 {file_count} 个文件")
+        first_file = Path(dir_path.split(FILE_LIST_SEPARATOR)[0])
+        default_name = f"{first_file.parent / 'files_compressed'}.zip"
     else:
-        log(f"📦 开始批量压缩文件，共找到 {file_count} 个文件")
+        log(f"Info: 开始批量压缩文件，共找到 {file_count} 个文件")
         default_name = f"{dir_path}_compressed.zip"
     
     zip_name = output if output else default_name
@@ -239,30 +246,37 @@ def batch_compress(dir_path, output="", exclude="", log_callback=None):
 
 def batch_classify(dir_path, mode, log_callback=None):
     def log(msg):
-        if log_callback:
-            log_callback(msg)
-        else:
-            print(msg)
+        try:
+            if log_callback:
+                log_callback(msg)
+            else:
+                print(msg)
+        except UnicodeEncodeError:
+            if log_callback:
+                log_callback(msg.encode('ascii', 'replace').decode('ascii'))
+            else:
+                print(msg.encode('ascii', 'replace').decode('ascii'))
 
     file_list, input_type = parse_input_path(dir_path)
     
     if input_type == "invalid":
-        log(f"❌ 路径 {dir_path} 不是有效文件或目录")
+        log(f"Error: 路径 {dir_path} 不是有效文件或目录")
         return False
 
     file_count = len(file_list)
     if file_count == 0:
-        log(f"❌ 未找到文件")
+        log(f"Error: 未找到文件")
         return False
 
     if input_type == "single":
-        log(f"📂 处理单个文件：{file_list[0].name}")
+        log(f"Info: 处理单个文件：{file_list[0].name}")
         classify_dir = file_list[0].parent / "classified"
     elif input_type == "multiple":
-        log(f"📂 开始批量分类，共 {file_count} 个文件")
-        classify_dir = Path(dir_path.split(FILE_LIST_SEPARATOR)[0]).parent / "classified"
+        log(f"Info: 开始批量分类，共 {file_count} 个文件")
+        first_file = Path(dir_path.split(FILE_LIST_SEPARATOR)[0])
+        classify_dir = first_file.parent / "classified"
     else:
-        log(f"📂 开始批量分类，共 {file_count} 个文件")
+        log(f"Info: 开始批量分类，共 {file_count} 个文件")
         classify_dir = Path(dir_path) / "classified"
 
     classify_dir.mkdir(exist_ok=True)
@@ -540,7 +554,7 @@ def batch_copy_move(dir_path, target_dir, mode="copy", exclude="", log_callback=
         return False
 
     if exclude:
-        exclude_exts = [ext.strip().lower() for ext in exclude.split(",")]
+        exclude_exts = [ext.strip().lower() for ext in exclude.split(",") if ext.strip()]
         file_list = [f for f in all_files if f.suffix.lstrip(".").lower() not in exclude_exts]
     else:
         file_list = all_files
