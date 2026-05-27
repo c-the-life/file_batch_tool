@@ -1,15 +1,24 @@
+import traceback
 from PyQt5.QtCore import QThread, pyqtSignal
-from src.utils.file_operations import (
-    batch_rename, batch_convert_image, batch_compress,
-    batch_classify, batch_watermark, batch_modify_file_time,
-    batch_extract_exif, batch_copy_move
-)
-
+from src.utils import file_operations
 
 class WorkerThread(QThread):
     log_signal = pyqtSignal(str)
     progress_signal = pyqtSignal(int)
     finish_signal = pyqtSignal(bool)
+
+    # 1. 建立任务类型与底层函数的自动映射关系
+    # 键名为 task_type，键值为 file_operations 里的对应函数名
+    TASK_MAPPING = {
+        "rename": "batch_rename",
+        "convert_img": "batch_convert_image",
+        "compress": "batch_compress",
+        "classify": "batch_classify",
+        "watermark": "batch_watermark",
+        "modify_time": "batch_modify_file_time",
+        "extract_exif": "batch_extract_exif",
+        "copy_move": "batch_copy_move"
+    }
 
     def __init__(self, task_type, params):
         super().__init__()
@@ -17,79 +26,47 @@ class WorkerThread(QThread):
         self.params = params
 
     def run(self):
+        # 2. 统一的进度和日志回调接口
         def log_callback(msg):
             if msg.startswith("progress:"):
-                progress = int(msg.split(":")[1])
-                self.progress_signal.emit(progress)
+                try:
+                    progress = int(msg.split(":")[1])
+                    self.progress_signal.emit(progress)
+                except (ValueError, IndexError):
+                    pass
             else:
                 self.log_signal.emit(msg)
 
         try:
-            if self.task_type == "rename":
-                result = batch_rename(
-                    dir_path=self.params["dir"],
-                    prefix=self.params["prefix"],
-                    suffix=self.params["suffix"],
-                    find_str=self.params["find_str"],
-                    replace_str=self.params["replace_str"],
-                    log_callback=log_callback
-                )
-            elif self.task_type == "convert_img":
-                result = batch_convert_image(
-                    dir_path=self.params["dir"],
-                    to_format=self.params["to_format"],
-                    log_callback=log_callback
-                )
-            elif self.task_type == "compress":
-                result = batch_compress(
-                    dir_path=self.params["dir"],
-                    output=self.params["output"],
-                    exclude=self.params["exclude"],
-                    log_callback=log_callback
-                )
-            elif self.task_type == "classify":
-                result = batch_classify(
-                    dir_path=self.params["dir"],
-                    mode=self.params["mode"],
-                    log_callback=log_callback
-                )
-            elif self.task_type == "watermark":
-                result = batch_watermark(
-                    dir_path=self.params["dir"],
-                    type_=self.params["type"],
-                    content=self.params["content"],
-                    font=self.params["font"],
-                    size=self.params["size"],
-                    color=self.params["color"],
-                    opacity=self.params["opacity"],
-                    watermark_path=self.params["watermark_path"],
-                    log_callback=log_callback
-                )
-            elif self.task_type == "modify_time":
-                result = batch_modify_file_time(
-                    dir_path=self.params["dir"],
-                    target_time=self.params["target_time"],
-                    time_type=self.params["time_type"],
-                    log_callback=log_callback
-                )
-            elif self.task_type == "extract_exif":
-                result = batch_extract_exif(
-                    dir_path=self.params["dir"],
-                    output_csv=self.params["output_csv"],
-                    log_callback=log_callback
-                )
-            elif self.task_type == "copy_move":
-                result = batch_copy_move(
-                    dir_path=self.params["dir"],
-                    target_dir=self.params["target_dir"],
-                    mode=self.params["mode"],
-                    exclude=self.params["exclude"],
-                    log_callback=log_callback
-                )
-            else:
-                result = False
-                self.log_signal.emit("❌ 不支持的任务类型")
-            self.finish_signal.emit(result)
+            # 3. 动态获取目标函数
+            func_name = self.TASK_MAPPING.get(self.task_type)
+            if not func_name or not hasattr(file_operations, func_name):
+                self.log_signal.emit(f"❌ 不支持的任务类型: {self.task_type}")
+                self.finish_signal.emit(False)
+                return
+
+            target_function = getattr(file_operations, func_name)
+
+            # 4. 自动匹配参数
+            # 我们将具体的参数名称与底层的形参做下映射（处理个别参数名不一致的情况）
+            kwargs = self.params.copy()
+            dir_path = kwargs.pop("dir", None)
+            if dir_path is not None:
+                kwargs["dir_path"] = dir_path
+            
+            # 因为 watermark 接收的是 type_，而 params 里是 type
+            if "type" in kwargs:
+                kwargs["type_"] = kwargs.pop("type")
+
+            # 注入统一的回调函数
+            kwargs["log_callback"] = log_callback
+
+            # 5. 一行代码动态调用，优雅且拓展性极强
+            result = target_function(**kwargs)
+            self.finish_signal.emit(bool(result))
+
         except Exception as e:
-            self.log_signal.emit(f"❌ 任务执行异常：{str(e)}")
+            # 6. 安全捕获异常，打印完整堆栈，防止线程闪退
+            error_msg = f"❌ 任务执行异常: {str(e)}\n{traceback.format_exc()}"
+            self.log_signal.emit(error_msg)
             self.finish_signal.emit(False)
