@@ -15,13 +15,17 @@ FILE_LIST_SEPARATOR = "|||"
 
 def safe_log(msg, log_callback=None):
     """统一的日志输出，处理某些控制台的编码崩溃问题"""
-    if log_callback:
-        log_callback(msg)
-    else:
-        try:
+    try:
+        if log_callback:
+            log_callback(msg)
+        else:
             print(msg)
-        except UnicodeEncodeError:
-            print(msg.encode('ascii', 'replace').decode('ascii'))
+    except UnicodeEncodeError:
+        msg = msg.encode('ascii', 'replace').decode('ascii')
+        if log_callback:
+            log_callback(msg)
+        else:
+            print(msg)
 
 def parse_input_path(input_path):
     """解析输入路径，支持单个文件、目录、多个文件（仅筛选文件，排除目录）"""
@@ -99,8 +103,11 @@ def batch_rename(dir_path, prefix="", suffix="", find_str="", replace_str="", lo
             file_path.rename(new_path)
             rename_count += 1
             safe_log(f"✅ 重命名：{old_name} → {new_name}", log_callback)
-        except (PermissionError, FileNotFoundError) as e:
-            safe_log(f"⚠️ 跳过 {old_name}：操作失败 - {e.__class__.__name__}", log_callback)
+        except PermissionError:
+            safe_log(f"⚠️ 跳过 {old_name}：权限不足或文件被占用。请检查文件是否被其他程序打开，或尝试以管理员身份运行", log_callback)
+            skip_count += 1
+        except FileNotFoundError:
+            safe_log(f"⚠️ 跳过 {old_name}：文件不存在", log_callback)
             skip_count += 1
 
         if log_callback:
@@ -173,12 +180,12 @@ def batch_compress(dir_path, output="", exclude="", log_callback=None):
         return False
 
     if input_type == "single":
-        default_name = f"{file_list[0].parent / file_list[0].stem}_compressed.zip"
+        default_name = file_list[0].parent / f"{file_list[0].stem}_compressed.zip"
     elif input_type == "multiple":
         first_file = Path(dir_path.split(FILE_LIST_SEPARATOR)[0])
-        default_name = f"{first_file.parent / 'files_compressed'}.zip"
+        default_name = first_file.parent / "files_compressed.zip"
     else:
-        default_name = f"{dir_path}_compressed.zip"
+        default_name = Path(dir_path) / "files_compressed.zip"
     
     zip_path = Path(output if output else default_name)
     if zip_path.exists():
@@ -208,6 +215,7 @@ def batch_classify(dir_path, mode, log_callback=None):
 
     classify_dir.mkdir(exist_ok=True)
     count = 0
+    file_count = len(file_list)
 
     for idx, file_path in enumerate(file_list):
         if mode == "ext":
@@ -256,8 +264,14 @@ def batch_watermark(dir_path, type_, content="", font="", size=24, color="(255,2
             color_tuple = ast.literal_eval(color)
         else:
             color_tuple = ImageColor.getrgb(color)
+        # 如果颜色是3元组(RGB)，添加透明度
+        if len(color_tuple) == 3:
+            color_tuple = color_tuple + (opacity,)
+        # 如果颜色是4元组，覆盖透明度
+        elif len(color_tuple) == 4:
+            color_tuple = color_tuple[:3] + (opacity,)
     except Exception:
-        color_tuple = (255, 255, 255, 128)
+        color_tuple = (255, 255, 255, opacity)
 
     # 2. 初始化水印源
     if type_ == "text":
@@ -317,6 +331,7 @@ def batch_modify_file_time(dir_path, target_time, time_type="both", log_callback
 
     target_timestamp = datetime.timestamp(target_time)
     modify_count = 0
+    file_count = len(file_list)
 
     for idx, file_path in enumerate(file_list):
         try:

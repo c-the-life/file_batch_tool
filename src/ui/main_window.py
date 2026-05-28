@@ -379,6 +379,14 @@ class FileToolMainWindow(QMainWindow):
         action_layout.addStretch()
         layout.addLayout(action_layout)
 
+        progress_group = QGroupBox("进度")
+        progress_layout = QHBoxLayout(progress_group)
+        self.rename_progress_bar = QProgressBar()
+        self.rename_progress_bar.setRange(0, 100)
+        self.rename_progress_bar.setValue(0)
+        progress_layout.addWidget(self.rename_progress_bar)
+        layout.addWidget(progress_group)
+
         log_group = QGroupBox("执行日志")
         log_layout = QVBoxLayout(log_group)
         self.rename_log_edit = QTextEdit()
@@ -425,6 +433,14 @@ class FileToolMainWindow(QMainWindow):
         action_layout.addWidget(self.convert_run_btn)
         action_layout.addStretch()
         layout.addLayout(action_layout)
+
+        progress_group = QGroupBox("进度")
+        progress_layout = QHBoxLayout(progress_group)
+        self.convert_progress_bar = QProgressBar()
+        self.convert_progress_bar.setRange(0, 100)
+        self.convert_progress_bar.setValue(0)
+        progress_layout.addWidget(self.convert_progress_bar)
+        layout.addWidget(progress_group)
 
         log_group = QGroupBox("执行日志")
         log_layout = QVBoxLayout(log_group)
@@ -490,6 +506,14 @@ class FileToolMainWindow(QMainWindow):
         action_layout.addStretch()
         layout.addLayout(action_layout)
 
+        progress_group = QGroupBox("进度")
+        progress_layout = QHBoxLayout(progress_group)
+        self.compress_progress_bar = QProgressBar()
+        self.compress_progress_bar.setRange(0, 100)
+        self.compress_progress_bar.setValue(0)
+        progress_layout.addWidget(self.compress_progress_bar)
+        layout.addWidget(progress_group)
+
         log_group = QGroupBox("执行日志")
         log_layout = QVBoxLayout(log_group)
         self.compress_log_edit = QTextEdit()
@@ -536,6 +560,14 @@ class FileToolMainWindow(QMainWindow):
         action_layout.addWidget(self.classify_run_btn)
         action_layout.addStretch()
         layout.addLayout(action_layout)
+
+        progress_group = QGroupBox("进度")
+        progress_layout = QHBoxLayout(progress_group)
+        self.classify_progress_bar = QProgressBar()
+        self.classify_progress_bar.setRange(0, 100)
+        self.classify_progress_bar.setValue(0)
+        progress_layout.addWidget(self.classify_progress_bar)
+        layout.addWidget(progress_group)
 
         log_group = QGroupBox("执行日志")
         log_layout = QVBoxLayout(log_group)
@@ -690,6 +722,14 @@ class FileToolMainWindow(QMainWindow):
         action_layout.addStretch()
         layout.addLayout(action_layout)
 
+        progress_group = QGroupBox("进度")
+        progress_layout = QHBoxLayout(progress_group)
+        self.watermark_progress_bar = QProgressBar()
+        self.watermark_progress_bar.setRange(0, 100)
+        self.watermark_progress_bar.setValue(0)
+        progress_layout.addWidget(self.watermark_progress_bar)
+        layout.addWidget(progress_group)
+
         log_group = QGroupBox("执行日志")
         log_layout = QVBoxLayout(log_group)
         self.watermark_log_edit = QTextEdit()
@@ -753,6 +793,14 @@ class FileToolMainWindow(QMainWindow):
         action_layout.addStretch()
         layout.addLayout(action_layout)
 
+        progress_group = QGroupBox("进度")
+        progress_layout = QHBoxLayout(progress_group)
+        self.modify_time_progress_bar = QProgressBar()
+        self.modify_time_progress_bar.setRange(0, 100)
+        self.modify_time_progress_bar.setValue(0)
+        progress_layout.addWidget(self.modify_time_progress_bar)
+        layout.addWidget(progress_group)
+
         log_group = QGroupBox("执行日志")
         log_layout = QVBoxLayout(log_group)
         self.modify_time_log_edit = QTextEdit()
@@ -802,6 +850,14 @@ class FileToolMainWindow(QMainWindow):
         action_layout.addWidget(self.extract_exif_run_btn)
         action_layout.addStretch()
         layout.addLayout(action_layout)
+
+        progress_group = QGroupBox("进度")
+        progress_layout = QHBoxLayout(progress_group)
+        self.extract_exif_progress_bar = QProgressBar()
+        self.extract_exif_progress_bar.setRange(0, 100)
+        self.extract_exif_progress_bar.setValue(0)
+        progress_layout.addWidget(self.extract_exif_progress_bar)
+        layout.addWidget(progress_group)
 
         log_group = QGroupBox("执行日志")
         log_layout = QVBoxLayout(log_group)
@@ -876,6 +932,14 @@ class FileToolMainWindow(QMainWindow):
         action_layout.addWidget(self.copy_move_run_btn)
         action_layout.addStretch()
         layout.addLayout(action_layout)
+
+        progress_group = QGroupBox("进度")
+        progress_layout = QHBoxLayout(progress_group)
+        self.copy_move_progress_bar = QProgressBar()
+        self.copy_move_progress_bar.setRange(0, 100)
+        self.copy_move_progress_bar.setValue(0)
+        progress_layout.addWidget(self.copy_move_progress_bar)
+        layout.addWidget(progress_group)
 
         log_group = QGroupBox("执行日志")
         log_layout = QVBoxLayout(log_group)
@@ -1147,6 +1211,7 @@ class FileToolMainWindow(QMainWindow):
 
         self.convert_thread = WorkerThread("convert_img", params)
         self.convert_thread.log_signal.connect(lambda msg: self.append_log(self.convert_log_edit, msg))
+        self.convert_thread.progress_signal.connect(lambda val: self.convert_progress_bar.setValue(val))
         self.convert_thread.finish_signal.connect(lambda res: self.task_finish(res, self.convert_run_btn))
         self.convert_thread.start()
 
@@ -1167,6 +1232,7 @@ class FileToolMainWindow(QMainWindow):
 
         self.compress_thread = WorkerThread("compress", params)
         self.compress_thread.log_signal.connect(lambda msg: self.append_log(self.compress_log_edit, msg))
+        self.compress_thread.progress_signal.connect(lambda val: self.compress_progress_bar.setValue(val))
         self.compress_thread.finish_signal.connect(lambda res: self.task_finish(res, self.compress_run_btn))
         self.compress_thread.start()
 
@@ -1189,6 +1255,7 @@ class FileToolMainWindow(QMainWindow):
 
         self.classify_thread = WorkerThread("classify", params)
         self.classify_thread.log_signal.connect(lambda msg: self.append_log(self.classify_log_edit, msg))
+        self.classify_thread.progress_signal.connect(lambda val: self.classify_progress_bar.setValue(val))
         self.classify_thread.finish_signal.connect(lambda res: self.task_finish(res, self.classify_run_btn))
         self.classify_thread.start()
 
@@ -1222,6 +1289,7 @@ class FileToolMainWindow(QMainWindow):
 
         self.watermark_thread = WorkerThread("watermark", params)
         self.watermark_thread.log_signal.connect(lambda msg: self.append_log(self.watermark_log_edit, msg))
+        self.watermark_thread.progress_signal.connect(lambda val: self.watermark_progress_bar.setValue(val))
         self.watermark_thread.finish_signal.connect(lambda res: self.task_finish(res, self.watermark_run_btn))
         self.watermark_thread.start()
 
@@ -1251,6 +1319,7 @@ class FileToolMainWindow(QMainWindow):
 
         self.modify_time_thread = WorkerThread("modify_time", params)
         self.modify_time_thread.log_signal.connect(lambda msg: self.append_log(self.modify_time_log_edit, msg))
+        self.modify_time_thread.progress_signal.connect(lambda val: self.modify_time_progress_bar.setValue(val))
         self.modify_time_thread.finish_signal.connect(lambda res: self.task_finish(res, self.modify_time_run_btn))
         self.modify_time_thread.start()
 
@@ -1278,6 +1347,7 @@ class FileToolMainWindow(QMainWindow):
 
         self.extract_exif_thread = WorkerThread("extract_exif", params)
         self.extract_exif_thread.log_signal.connect(lambda msg: self.append_log(self.extract_exif_log_edit, msg))
+        self.extract_exif_thread.progress_signal.connect(lambda val: self.extract_exif_progress_bar.setValue(val))
         self.extract_exif_thread.finish_signal.connect(lambda res: self.task_finish(res, self.extract_exif_run_btn))
         self.extract_exif_thread.start()
 
@@ -1306,6 +1376,7 @@ class FileToolMainWindow(QMainWindow):
 
         self.copy_move_thread = WorkerThread("copy_move", params)
         self.copy_move_thread.log_signal.connect(lambda msg: self.append_log(self.copy_move_log_edit, msg))
+        self.copy_move_thread.progress_signal.connect(lambda val: self.copy_move_progress_bar.setValue(val))
         self.copy_move_thread.finish_signal.connect(lambda res: self.task_finish(res, self.copy_move_run_btn))
         self.copy_move_thread.start()
 
