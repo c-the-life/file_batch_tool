@@ -5,9 +5,10 @@ from PyQt5.QtWidgets import (
     QLabel, QLineEdit, QPushButton, QTextEdit, QComboBox, QFileDialog,
     QSpinBox, QGroupBox, QMessageBox, QProgressBar, QDateTimeEdit, QScrollArea, QCheckBox
 )
-from PyQt5.QtCore import Qt, QDateTime, QSize, QMimeData
+from PyQt5.QtCore import Qt, QDateTime, QSize, QMimeData, QThread
 from PyQt5.QtGui import QFont, QPalette, QColor, QIcon, QDragEnterEvent, QDropEvent
 from src.core.worker import WorkerThread
+from src.utils.ai_assistant import AIAssistant
 
 
 class DragDropLineEdit(QLineEdit):
@@ -55,6 +56,7 @@ class DragDropLineEdit(QLineEdit):
 class FileToolMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.ai_assistant = AIAssistant()
         self.init_ui()
 
     def init_ui(self):
@@ -84,7 +86,7 @@ class FileToolMainWindow(QMainWindow):
         header_layout.addWidget(title_label)
         header_layout.addStretch()
 
-        version_label = QLabel("v1.0")
+        version_label = QLabel("v1.2")
         version_label.setStyleSheet("color: #718096; font-size: 12px;")
         header_layout.addWidget(version_label)
 
@@ -117,6 +119,7 @@ class FileToolMainWindow(QMainWindow):
         """)
         main_layout.addWidget(self.tab_widget)
 
+        self.init_ai_tab()
         self.init_rename_tab()
         self.init_convert_img_tab()
         self.init_compress_tab()
@@ -125,6 +128,185 @@ class FileToolMainWindow(QMainWindow):
         self.init_modify_time_tab()
         self.init_extract_exif_tab()
         self.init_copy_move_tab()
+
+    def init_ai_tab(self):
+        """AI智能助手界面"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
+
+        ai_group = QGroupBox("🤖 AI 智能助手")
+        ai_layout = QVBoxLayout(ai_group)
+        ai_layout.setSpacing(16)
+
+        desc_label = QLabel("用自然语言告诉我要做什么，我来帮您自动完成！")
+        desc_label.setStyleSheet("color: #4a5568; font-size: 14px;")
+        ai_layout.addWidget(desc_label)
+
+        input_layout = QHBoxLayout()
+        input_layout.setSpacing(12)
+        
+        self.ai_input = QLineEdit()
+        self.ai_input.setPlaceholderText("例如：把图片转换成webp格式，给图片加水印...")
+        self.ai_input.setStyleSheet("""
+            QLineEdit {
+                background: white;
+                border: 2px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 14px 18px;
+                font-size: 14px;
+                min-height: 48px;
+            }
+            QLineEdit:focus {
+                border-color: #3182ce;
+            }
+        """)
+        input_layout.addWidget(self.ai_input)
+
+        ai_button = QPushButton("发送")
+        ai_button.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #48bb78, stop:1 #38a169);
+                color: white;
+                border: none;
+                border-radius: 12px;
+                padding: 14px 32px;
+                font-size: 14px;
+                font-weight: 600;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #68d391, stop:1 #48bb78);
+            }
+        """)
+        ai_button.clicked.connect(self.on_ai_command)
+        input_layout.addWidget(ai_button)
+
+        ai_layout.addLayout(input_layout)
+
+        chat_container = QWidget()
+        chat_layout = QVBoxLayout(chat_container)
+        chat_layout.setSpacing(12)
+        
+        self.chat_history = QTextEdit()
+        self.chat_history.setReadOnly(True)
+        self.chat_history.setStyleSheet("""
+            QTextEdit {
+                background: white;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 16px;
+                font-size: 14px;
+                min-height: 200px;
+            }
+        """)
+        self.chat_history.setText("🤖 你好！我是您的文件处理助手。\n\n请告诉我您想做什么，例如：\n- 把图片转换成webp格式\n- 给图片加水印\n- 按扩展名分类文件\n- 提取图片EXIF信息\n\n您可以先选择文件，然后告诉我要执行什么操作。")
+        
+        chat_layout.addWidget(self.chat_history)
+        ai_layout.addWidget(chat_container)
+
+        hint_group = QGroupBox("💡 支持的命令")
+        hint_layout = QVBoxLayout(hint_group)
+        
+        hint_text = QTextEdit()
+        hint_text.setReadOnly(True)
+        hint_text.setStyleSheet("""
+            QTextEdit {
+                background: #ebf8ff;
+                border: none;
+                border-radius: 8px;
+                padding: 12px;
+                font-size: 13px;
+                color: #2c7a7b;
+            }
+        """)
+        
+        commands = self.ai_assistant.get_supported_commands()
+        hint_content = "我可以帮您完成以下任务：\n\n"
+        for cmd in commands:
+            hint_content += f"• {cmd['description']}\n"
+            for example in cmd['examples'][:2]:
+                hint_content += f"  - {example}\n"
+            hint_content += "\n"
+        
+        hint_text.setText(hint_content)
+        hint_layout.addWidget(hint_text)
+        
+        ai_layout.addWidget(hint_group)
+
+        layout.addWidget(ai_group)
+
+        self.tab_widget.addTab(tab, "🤖 AI助手")
+
+    def on_ai_command(self):
+        """处理AI命令"""
+        user_input = self.ai_input.text().strip()
+        if not user_input:
+            return
+
+        self.chat_history.append(f"\n\n👤 您说：{user_input}")
+        self.ai_input.clear()
+
+        parsed, response = self.ai_assistant.generate_response(user_input)
+        self.chat_history.append(f"\n🤖 {response}")
+
+        if parsed:
+            self.execute_ai_command(parsed)
+
+    def execute_ai_command(self, command):
+        """执行AI解析的命令"""
+        cmd_type = command['command']
+        params = command['params']
+        
+        if cmd_type == 'convert':
+            target_format = params.get('to_format', 'webp')
+            self.tab_widget.setCurrentIndex(2)
+            self.convert_to_format.setCurrentText(target_format.upper())
+            self.chat_history.append(f"\n✅ 已切换到图片转换功能，目标格式：{target_format}")
+            
+        elif cmd_type == 'watermark':
+            self.tab_widget.setCurrentIndex(5)
+            self.chat_history.append("\n✅ 已切换到图片水印功能")
+            
+        elif cmd_type == 'rename':
+            self.tab_widget.setCurrentIndex(1)
+            if 'prefix' in params:
+                self.rename_prefix.setText(params['prefix'])
+            if 'suffix' in params:
+                self.rename_suffix.setText(params['suffix'])
+            self.chat_history.append("\n✅ 已切换到批量重命名功能")
+            
+        elif cmd_type == 'classify':
+            by_type = params.get('by_type', 'extension')
+            self.tab_widget.setCurrentIndex(4)
+            if by_type == 'date':
+                self.classify_by_combo.setCurrentIndex(1)
+            else:
+                self.classify_by_combo.setCurrentIndex(0)
+            self.chat_history.append("\n✅ 已切换到文件分类功能")
+            
+        elif cmd_type == 'exif':
+            self.tab_widget.setCurrentIndex(7)
+            self.chat_history.append("\n✅ 已切换到EXIF提取功能")
+            
+        elif cmd_type == 'compress':
+            self.tab_widget.setCurrentIndex(3)
+            self.chat_history.append("\n✅ 已切换到文件压缩功能")
+            
+        elif cmd_type == 'copy' or cmd_type == 'move':
+            self.tab_widget.setCurrentIndex(8)
+            if cmd_type == 'move':
+                self.copy_move_combo.setCurrentIndex(1)
+            else:
+                self.copy_move_combo.setCurrentIndex(0)
+            if 'target_dir' in params:
+                self.copy_move_target.setText(params['target_dir'])
+            self.chat_history.append("\n✅ 已切换到批量复制/移动功能")
+            
+        elif cmd_type == 'modify_time':
+            self.tab_widget.setCurrentIndex(6)
+            self.chat_history.append("\n✅ 已切换到修改文件时间功能")
 
     def get_stylesheet(self):
         return """
@@ -197,32 +379,19 @@ class FileToolMainWindow(QMainWindow):
                 border: none;
             }
             QComboBox::down-arrow {
-                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHZpZXdCb3g9IjAgMCAxMiAxMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNNiAxMGwtNi00IDYtNCA2IDQtNiA0eiIvPjwvc3ZnPg==);
-                width: 12px;
-                height: 12px;
+                image: url(:/icons/down_arrow.png);
+                width: 16px;
+                height: 16px;
             }
             QSpinBox {
-                background: white;
+                background: #f7fafc;
                 border: 1px solid #e2e8f0;
                 border-radius: 8px;
-                padding: 10px 14px;
+                padding: 8px 12px;
                 font-size: 13px;
                 color: #2d3748;
-                min-width: 80px;
             }
             QSpinBox:focus {
-                border-color: #3182ce;
-                outline: none;
-            }
-            QDateTimeEdit {
-                background: white;
-                border: 1px solid #e2e8f0;
-                border-radius: 8px;
-                padding: 10px 14px;
-                font-size: 13px;
-                color: #2d3748;
-            }
-            QDateTimeEdit:focus {
                 border-color: #3182ce;
                 outline: none;
             }
@@ -230,1173 +399,964 @@ class FileToolMainWindow(QMainWindow):
                 background: white;
                 border: 1px solid #e2e8f0;
                 border-radius: 8px;
-                font-family: 'Consolas', 'Monaco', monospace;
-                font-size: 12px;
+                padding: 12px;
+                font-size: 13px;
                 color: #2d3748;
             }
             QProgressBar {
                 background: #e2e8f0;
                 border: none;
-                border-radius: 20px;
-                height: 8px;
+                border-radius: 8px;
+                height: 12px;
                 text-align: center;
+                font-size: 11px;
+                color: #2d3748;
             }
             QProgressBar::chunk {
-                background: linear-gradient(90deg, #3182ce 0%, #38a169 100%);
-                border-radius: 20px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3182ce, stop:1 #63b3ed);
+                border-radius: 8px;
             }
-            QMessageBox {
+            QDateTimeEdit {
+                background: #f7fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 8px 12px;
+                font-size: 13px;
+                color: #2d3748;
+            }
+            QDateTimeEdit:focus {
+                border-color: #3182ce;
+                outline: none;
+            }
+            QCheckBox {
+                font-size: 13px;
+                color: #2d3748;
+                spacing: 8px;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                border: 2px solid #e2e8f0;
                 background: white;
-                border-radius: 12px;
+            }
+            QCheckBox::indicator:checked {
+                background: #3182ce;
+                border-color: #3182ce;
             }
         """
 
     def init_rename_tab(self):
+        """批量重命名界面"""
         tab = QWidget()
-        self.tab_widget.addTab(tab, "批量重命名")
-
         layout = QVBoxLayout(tab)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
 
-        dir_group = QGroupBox("目标目录")
-        dir_layout = QHBoxLayout(dir_group)
-        dir_layout.setSpacing(12)
-        self.rename_dir_edit = DragDropLineEdit()
-        self.rename_dir_edit.setPlaceholderText("选择目录或文件（支持批量拖拽多个文件）")
-        self.rename_dir_edit.setMinimumHeight(40)
-        dir_btn = QPushButton("浏览")
-        dir_btn.clicked.connect(lambda: self.select_dir(self.rename_dir_edit))
-        dir_layout.addWidget(self.rename_dir_edit)
-        dir_layout.addWidget(dir_btn)
-        layout.addWidget(dir_group)
-        
-        self.rename_dir_edit.set_files_changed_callback(self.update_rename_file_settings)
+        file_group = QGroupBox("选择文件")
+        file_layout = QVBoxLayout(file_group)
 
-        param_group = QGroupBox("整体设置（应用于所有文件）")
-        param_layout = QVBoxLayout(param_group)
-        param_layout.setSpacing(16)
+        self.rename_input = DragDropLineEdit()
+        self.rename_input.setPlaceholderText("拖拽文件到这里，或点击下方按钮选择")
+        file_layout.addWidget(self.rename_input)
 
-        # 前缀后缀行
-        row1_layout = QHBoxLayout()
-        row1_layout.setSpacing(16)
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
+
+        select_btn = QPushButton("选择文件")
+        select_btn.clicked.connect(lambda: self.select_files(self.rename_input))
+        btn_layout.addWidget(select_btn)
+        btn_layout.addStretch()
+
+        file_layout.addLayout(btn_layout)
+        layout.addWidget(file_group)
+
+        setting_group = QGroupBox("重命名设置")
+        setting_layout = QVBoxLayout(setting_group)
+        setting_layout.setSpacing(16)
+
+        row1 = QHBoxLayout()
+        row1.setSpacing(20)
 
         prefix_layout = QHBoxLayout()
-        prefix_layout.addWidget(QLabel("前缀"))
-        prefix_layout.addWidget(QLabel(":"))
-        self.rename_prefix_edit = QLineEdit()
-        self.rename_prefix_edit.setPlaceholderText("例如：风景_")
-        self.rename_prefix_edit.setMinimumWidth(180)
-        prefix_layout.addWidget(self.rename_prefix_edit)
-        row1_layout.addLayout(prefix_layout)
+        prefix_layout.addWidget(QLabel("前缀："))
+        self.rename_prefix = QLineEdit()
+        self.rename_prefix.setPlaceholderText("输入前缀")
+        prefix_layout.addWidget(self.rename_prefix)
+        row1.addLayout(prefix_layout)
 
         suffix_layout = QHBoxLayout()
-        suffix_layout.addWidget(QLabel("后缀"))
-        suffix_layout.addWidget(QLabel(":"))
-        self.rename_suffix_edit = QLineEdit()
-        self.rename_suffix_edit.setPlaceholderText("例如：_高清")
-        self.rename_suffix_edit.setMinimumWidth(180)
-        suffix_layout.addWidget(self.rename_suffix_edit)
-        row1_layout.addLayout(suffix_layout)
-        row1_layout.addStretch()
-        param_layout.addLayout(row1_layout)
+        suffix_layout.addWidget(QLabel("后缀："))
+        self.rename_suffix = QLineEdit()
+        self.rename_suffix.setPlaceholderText("输入后缀")
+        suffix_layout.addWidget(self.rename_suffix)
+        row1.addLayout(suffix_layout)
 
-        # 启用自动编号复选框
-        auto_num_check_layout = QHBoxLayout()
-        auto_num_check_layout.setSpacing(12)
-        self.rename_use_auto_number = QCheckBox("启用自动编号")
-        self.rename_use_auto_number.stateChanged.connect(self.toggle_auto_number)
-        auto_num_check_layout.addWidget(self.rename_use_auto_number)
-        auto_num_check_layout.addStretch()
-        param_layout.addLayout(auto_num_check_layout)
+        setting_layout.addLayout(row1)
 
-        # 自动编号组
-        self.auto_number_group = QGroupBox()
-        auto_number_layout = QHBoxLayout(self.auto_number_group)
-        auto_number_layout.setSpacing(16)
+        row2 = QHBoxLayout()
+        row2.setSpacing(20)
 
-        name_base_layout = QHBoxLayout()
-        name_base_layout.addWidget(QLabel("基础名称"))
-        name_base_layout.addWidget(QLabel(":"))
-        self.rename_name_base_edit = QLineEdit()
-        self.rename_name_base_edit.setPlaceholderText("例如：照片")
-        self.rename_name_base_edit.setMinimumWidth(200)
-        self.rename_name_base_edit.setText("照片")
-        name_base_layout.addWidget(self.rename_name_base_edit)
-        auto_number_layout.addLayout(name_base_layout)
+        start_num_layout = QHBoxLayout()
+        start_num_layout.addWidget(QLabel("起始编号："))
+        self.rename_start_num = QSpinBox()
+        self.rename_start_num.setRange(1, 9999)
+        self.rename_start_num.setValue(1)
+        start_num_layout.addWidget(self.rename_start_num)
+        row2.addLayout(start_num_layout)
 
-        start_layout = QHBoxLayout()
-        start_layout.addWidget(QLabel("起始编号"))
-        start_layout.addWidget(QLabel(":"))
-        self.rename_start_spin = QSpinBox()
-        self.rename_start_spin.setMinimum(1)
-        self.rename_start_spin.setMaximum(99999)
-        self.rename_start_spin.setValue(1)
-        start_layout.addWidget(self.rename_start_spin)
-        auto_number_layout.addLayout(start_layout)
+        num_digits_layout = QHBoxLayout()
+        num_digits_layout.addWidget(QLabel("编号位数："))
+        self.rename_num_digits = QSpinBox()
+        self.rename_num_digits.setRange(1, 6)
+        self.rename_num_digits.setValue(3)
+        num_digits_layout.addWidget(self.rename_num_digits)
+        row2.addLayout(num_digits_layout)
 
-        digit_layout = QHBoxLayout()
-        digit_layout.addWidget(QLabel("位数"))
-        digit_layout.addWidget(QLabel(":"))
-        self.rename_digit_spin = QSpinBox()
-        self.rename_digit_spin.setMinimum(1)
-        self.rename_digit_spin.setMaximum(8)
-        self.rename_digit_spin.setValue(3)
-        digit_layout.addWidget(self.rename_digit_spin)
-        auto_number_layout.addLayout(digit_layout)
-        auto_number_layout.addStretch()
-        
-        self.auto_number_group.setVisible(False)
-        param_layout.addWidget(self.auto_number_group)
-
-        layout.addWidget(param_group)
-
-        files_group = QGroupBox("单个文件设置（可滚动）")
-        files_layout = QVBoxLayout(files_group)
-        files_layout.setSpacing(8)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setMinimumHeight(200)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        
-        self.rename_files_container = QWidget()
-        self.rename_files_layout = QVBoxLayout(self.rename_files_container)
-        self.rename_files_layout.setSpacing(8)
-        self.rename_files_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        
-        scroll.setWidget(self.rename_files_container)
-        files_layout.addWidget(scroll)
-        layout.addWidget(files_group)
-
-        action_layout = QHBoxLayout()
-        action_layout.setSpacing(16)
-        
-        # 应用按钮
-        self.rename_run_btn = QPushButton("应用")
-        self.rename_run_btn.clicked.connect(self.run_rename)
-        action_layout.addWidget(self.rename_run_btn)
-        action_layout.addStretch()
-        layout.addLayout(action_layout)
+        setting_layout.addLayout(row2)
+        layout.addWidget(setting_group)
 
         progress_group = QGroupBox("进度")
-        progress_layout = QHBoxLayout(progress_group)
-        self.rename_progress_bar = QProgressBar()
-        self.rename_progress_bar.setRange(0, 100)
-        self.rename_progress_bar.setValue(0)
-        progress_layout.addWidget(self.rename_progress_bar)
+        progress_layout = QVBoxLayout(progress_group)
+        self.rename_progress = QProgressBar()
+        self.rename_progress.setValue(0)
+        progress_layout.addWidget(self.rename_progress)
         layout.addWidget(progress_group)
 
-        log_group = QGroupBox("执行日志")
+        log_group = QGroupBox("日志")
         log_layout = QVBoxLayout(log_group)
-        self.rename_log_edit = QTextEdit()
-        self.rename_log_edit.setReadOnly(True)
-        self.rename_log_edit.setMinimumHeight(150)
-        log_layout.addWidget(self.rename_log_edit)
+        self.rename_log = QTextEdit()
+        self.rename_log.setReadOnly(True)
+        self.rename_log.setMaximumHeight(150)
+        log_layout.addWidget(self.rename_log)
         layout.addWidget(log_group)
+
+        apply_btn = QPushButton("应用")
+        apply_btn.clicked.connect(self.rename_files)
+        layout.addWidget(apply_btn)
+
+        self.tab_widget.addTab(tab, "🏷️ 批量重命名")
 
     def init_convert_img_tab(self):
+        """图片格式转换界面"""
         tab = QWidget()
-        self.tab_widget.addTab(tab, "图片格式转换")
-
         layout = QVBoxLayout(tab)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
 
-        dir_group = QGroupBox("图片目录")
-        dir_layout = QHBoxLayout(dir_group)
-        dir_layout.setSpacing(12)
-        self.convert_dir_edit = DragDropLineEdit()
-        self.convert_dir_edit.setPlaceholderText("选择目录或图片（支持批量拖拽多个文件）")
-        self.convert_dir_edit.setMinimumHeight(40)
-        dir_btn = QPushButton("浏览")
-        dir_btn.clicked.connect(lambda: self.select_dir(self.convert_dir_edit))
-        dir_layout.addWidget(self.convert_dir_edit)
-        dir_layout.addWidget(dir_btn)
-        layout.addWidget(dir_group)
+        file_group = QGroupBox("选择图片")
+        file_layout = QVBoxLayout(file_group)
 
-        format_group = QGroupBox("转换参数")
-        format_layout = QHBoxLayout(format_group)
-        format_layout.setSpacing(12)
-        format_layout.addWidget(QLabel("目标格式"))
-        format_layout.addWidget(QLabel(":"))
-        self.convert_format_combo = QComboBox()
-        self.convert_format_combo.addItems(["jpg", "png", "webp"])
-        format_layout.addWidget(self.convert_format_combo)
-        format_layout.addStretch()
-        layout.addWidget(format_group)
+        self.convert_input = DragDropLineEdit()
+        self.convert_input.setPlaceholderText("拖拽图片文件夹或图片文件到这里")
+        file_layout.addWidget(self.convert_input)
 
-        action_layout = QHBoxLayout()
-        action_layout.setSpacing(16)
-        self.convert_run_btn = QPushButton("应用")
-        self.convert_run_btn.clicked.connect(self.run_convert_img)
-        action_layout.addWidget(self.convert_run_btn)
-        action_layout.addStretch()
-        layout.addLayout(action_layout)
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
+
+        select_btn = QPushButton("选择文件夹")
+        select_btn.clicked.connect(lambda: self.select_folder(self.convert_input))
+        btn_layout.addWidget(select_btn)
+        btn_layout.addStretch()
+
+        file_layout.addLayout(btn_layout)
+        layout.addWidget(file_group)
+
+        setting_group = QGroupBox("转换设置")
+        setting_layout = QVBoxLayout(setting_group)
+        setting_layout.setSpacing(16)
+
+        format_layout = QHBoxLayout()
+        format_layout.addWidget(QLabel("目标格式："))
+        self.convert_to_format = QComboBox()
+        self.convert_to_format.addItems(["JPG", "PNG", "WEBP"])
+        format_layout.addWidget(self.convert_to_format)
+        setting_layout.addLayout(format_layout)
+
+        layout.addWidget(setting_group)
 
         progress_group = QGroupBox("进度")
-        progress_layout = QHBoxLayout(progress_group)
-        self.convert_progress_bar = QProgressBar()
-        self.convert_progress_bar.setRange(0, 100)
-        self.convert_progress_bar.setValue(0)
-        progress_layout.addWidget(self.convert_progress_bar)
+        progress_layout = QVBoxLayout(progress_group)
+        self.convert_progress = QProgressBar()
+        self.convert_progress.setValue(0)
+        progress_layout.addWidget(self.convert_progress)
         layout.addWidget(progress_group)
 
-        log_group = QGroupBox("执行日志")
+        log_group = QGroupBox("日志")
         log_layout = QVBoxLayout(log_group)
-        self.convert_log_edit = QTextEdit()
-        self.convert_log_edit.setReadOnly(True)
-        self.convert_log_edit.setMinimumHeight(150)
-        log_layout.addWidget(self.convert_log_edit)
+        self.convert_log = QTextEdit()
+        self.convert_log.setReadOnly(True)
+        self.convert_log.setMaximumHeight(150)
+        log_layout.addWidget(self.convert_log)
         layout.addWidget(log_group)
+
+        apply_btn = QPushButton("转换")
+        apply_btn.clicked.connect(self.convert_images)
+        layout.addWidget(apply_btn)
+
+        self.tab_widget.addTab(tab, "🖼️ 图片转换")
 
     def init_compress_tab(self):
+        """文件压缩界面"""
         tab = QWidget()
-        self.tab_widget.addTab(tab, "文件压缩")
-
         layout = QVBoxLayout(tab)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
 
-        dir_group = QGroupBox("目标目录")
-        dir_layout = QHBoxLayout(dir_group)
-        dir_layout.setSpacing(12)
-        self.compress_dir_edit = DragDropLineEdit()
-        self.compress_dir_edit.setPlaceholderText("选择目录或文件（支持批量拖拽多个文件）")
-        self.compress_dir_edit.setMinimumHeight(40)
-        dir_btn = QPushButton("浏览")
-        dir_btn.clicked.connect(lambda: self.select_dir(self.compress_dir_edit))
-        dir_layout.addWidget(self.compress_dir_edit)
-        dir_layout.addWidget(dir_btn)
-        layout.addWidget(dir_group)
+        file_group = QGroupBox("选择文件")
+        file_layout = QVBoxLayout(file_group)
 
-        output_group = QGroupBox("输出设置")
-        output_layout = QVBoxLayout(output_group)
-        output_layout.setSpacing(16)
+        self.compress_input = DragDropLineEdit()
+        self.compress_input.setPlaceholderText("拖拽文件或文件夹到这里")
+        file_layout.addWidget(self.compress_input)
 
-        output_layout1 = QHBoxLayout()
-        output_layout1.setSpacing(12)
-        output_layout1.addWidget(QLabel("压缩包路径"))
-        output_layout1.addWidget(QLabel(":"))
-        self.compress_output_edit = QLineEdit()
-        self.compress_output_edit.setPlaceholderText("默认：目录名_compressed.zip")
-        output_btn = QPushButton("浏览")
-        output_btn.clicked.connect(lambda: self.select_save_file(self.compress_output_edit, "ZIP压缩包 (*.zip)"))
-        output_layout1.addWidget(self.compress_output_edit)
-        output_layout1.addWidget(output_btn)
-        output_layout.addLayout(output_layout1)
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
 
-        exclude_layout = QHBoxLayout()
-        exclude_layout.setSpacing(12)
-        exclude_layout.addWidget(QLabel("排除扩展名"))
-        exclude_layout.addWidget(QLabel(":"))
-        self.compress_exclude_edit = QLineEdit()
-        self.compress_exclude_edit.setPlaceholderText("例如：zip,log,tmp")
-        exclude_layout.addWidget(self.compress_exclude_edit)
-        exclude_layout.addStretch()
-        output_layout.addLayout(exclude_layout)
+        select_btn = QPushButton("选择文件")
+        select_btn.clicked.connect(lambda: self.select_files(self.compress_input))
+        btn_layout.addWidget(select_btn)
+        btn_layout.addStretch()
 
-        layout.addWidget(output_group)
+        file_layout.addLayout(btn_layout)
+        layout.addWidget(file_group)
 
-        action_layout = QHBoxLayout()
-        action_layout.setSpacing(16)
-        self.compress_run_btn = QPushButton("应用")
-        self.compress_run_btn.clicked.connect(self.run_compress)
-        action_layout.addWidget(self.compress_run_btn)
-        action_layout.addStretch()
-        layout.addLayout(action_layout)
+        setting_group = QGroupBox("压缩设置")
+        setting_layout = QVBoxLayout(setting_group)
+        setting_layout.setSpacing(16)
+
+        output_layout = QHBoxLayout()
+        output_layout.addWidget(QLabel("输出路径："))
+        self.compress_output = QLineEdit()
+        self.compress_output.setPlaceholderText("自动生成")
+        output_layout.addWidget(self.compress_output)
+        browse_btn = QPushButton("浏览")
+        browse_btn.clicked.connect(self.browse_compress_output)
+        output_layout.addWidget(browse_btn)
+        setting_layout.addLayout(output_layout)
+
+        layout.addWidget(setting_group)
 
         progress_group = QGroupBox("进度")
-        progress_layout = QHBoxLayout(progress_group)
-        self.compress_progress_bar = QProgressBar()
-        self.compress_progress_bar.setRange(0, 100)
-        self.compress_progress_bar.setValue(0)
-        progress_layout.addWidget(self.compress_progress_bar)
+        progress_layout = QVBoxLayout(progress_group)
+        self.compress_progress = QProgressBar()
+        self.compress_progress.setValue(0)
+        progress_layout.addWidget(self.compress_progress)
         layout.addWidget(progress_group)
 
-        log_group = QGroupBox("执行日志")
+        log_group = QGroupBox("日志")
         log_layout = QVBoxLayout(log_group)
-        self.compress_log_edit = QTextEdit()
-        self.compress_log_edit.setReadOnly(True)
-        self.compress_log_edit.setMinimumHeight(150)
-        log_layout.addWidget(self.compress_log_edit)
+        self.compress_log = QTextEdit()
+        self.compress_log.setReadOnly(True)
+        self.compress_log.setMaximumHeight(150)
+        log_layout.addWidget(self.compress_log)
         layout.addWidget(log_group)
+
+        apply_btn = QPushButton("压缩")
+        apply_btn.clicked.connect(self.compress_files)
+        layout.addWidget(apply_btn)
+
+        self.tab_widget.addTab(tab, "📦 文件压缩")
 
     def init_classify_tab(self):
+        """文件分类界面"""
         tab = QWidget()
-        self.tab_widget.addTab(tab, "文件分类")
-
         layout = QVBoxLayout(tab)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
 
-        dir_group = QGroupBox("目标目录")
-        dir_layout = QHBoxLayout(dir_group)
-        dir_layout.setSpacing(12)
-        self.classify_dir_edit = DragDropLineEdit()
-        self.classify_dir_edit.setPlaceholderText("选择目录或文件（支持批量拖拽多个文件）")
-        self.classify_dir_edit.setMinimumHeight(40)
-        dir_btn = QPushButton("浏览")
-        dir_btn.clicked.connect(lambda: self.select_dir(self.classify_dir_edit))
-        dir_layout.addWidget(self.classify_dir_edit)
-        dir_layout.addWidget(dir_btn)
-        layout.addWidget(dir_group)
+        file_group = QGroupBox("选择文件")
+        file_layout = QVBoxLayout(file_group)
 
-        mode_group = QGroupBox("分类模式")
-        mode_layout = QHBoxLayout(mode_group)
-        mode_layout.setSpacing(12)
-        mode_layout.addWidget(QLabel("分类方式"))
-        mode_layout.addWidget(QLabel(":"))
-        self.classify_mode_combo = QComboBox()
-        self.classify_mode_combo.addItems(["按扩展名", "按创建日期"])
-        mode_layout.addWidget(self.classify_mode_combo)
-        mode_layout.addStretch()
-        layout.addWidget(mode_group)
+        self.classify_input = DragDropLineEdit()
+        self.classify_input.setPlaceholderText("拖拽文件或文件夹到这里")
+        file_layout.addWidget(self.classify_input)
 
-        action_layout = QHBoxLayout()
-        action_layout.setSpacing(16)
-        self.classify_run_btn = QPushButton("应用")
-        self.classify_run_btn.clicked.connect(self.run_classify)
-        action_layout.addWidget(self.classify_run_btn)
-        action_layout.addStretch()
-        layout.addLayout(action_layout)
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
+
+        select_btn = QPushButton("选择文件")
+        select_btn.clicked.connect(lambda: self.select_files(self.classify_input))
+        btn_layout.addWidget(select_btn)
+        btn_layout.addStretch()
+
+        file_layout.addLayout(btn_layout)
+        layout.addWidget(file_group)
+
+        setting_group = QGroupBox("分类设置")
+        setting_layout = QVBoxLayout(setting_group)
+        setting_layout.setSpacing(16)
+
+        by_layout = QHBoxLayout()
+        by_layout.addWidget(QLabel("分类方式："))
+        self.classify_by_combo = QComboBox()
+        self.classify_by_combo.addItems(["按扩展名", "按日期"])
+        by_layout.addWidget(self.classify_by_combo)
+        setting_layout.addLayout(by_layout)
+
+        output_layout = QHBoxLayout()
+        output_layout.addWidget(QLabel("输出目录："))
+        self.classify_output = QLineEdit()
+        self.classify_output.setPlaceholderText("自动生成")
+        output_layout.addWidget(self.classify_output)
+        browse_btn = QPushButton("浏览")
+        browse_btn.clicked.connect(self.browse_classify_output)
+        output_layout.addWidget(browse_btn)
+        setting_layout.addLayout(output_layout)
+
+        layout.addWidget(setting_group)
 
         progress_group = QGroupBox("进度")
-        progress_layout = QHBoxLayout(progress_group)
-        self.classify_progress_bar = QProgressBar()
-        self.classify_progress_bar.setRange(0, 100)
-        self.classify_progress_bar.setValue(0)
-        progress_layout.addWidget(self.classify_progress_bar)
+        progress_layout = QVBoxLayout(progress_group)
+        self.classify_progress = QProgressBar()
+        self.classify_progress.setValue(0)
+        progress_layout.addWidget(self.classify_progress)
         layout.addWidget(progress_group)
 
-        log_group = QGroupBox("执行日志")
+        log_group = QGroupBox("日志")
         log_layout = QVBoxLayout(log_group)
-        self.classify_log_edit = QTextEdit()
-        self.classify_log_edit.setReadOnly(True)
-        self.classify_log_edit.setMinimumHeight(150)
-        log_layout.addWidget(self.classify_log_edit)
+        self.classify_log = QTextEdit()
+        self.classify_log.setReadOnly(True)
+        self.classify_log.setMaximumHeight(150)
+        log_layout.addWidget(self.classify_log)
         layout.addWidget(log_group)
+
+        apply_btn = QPushButton("分类")
+        apply_btn.clicked.connect(self.classify_files)
+        layout.addWidget(apply_btn)
+
+        self.tab_widget.addTab(tab, "📂 文件分类")
 
     def init_watermark_tab(self):
+        """图片水印界面"""
         tab = QWidget()
-        self.tab_widget.addTab(tab, "图片加水印")
-
         layout = QVBoxLayout(tab)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
 
-        dir_group = QGroupBox("图片目录")
-        dir_layout = QHBoxLayout(dir_group)
-        dir_layout.setSpacing(12)
-        self.watermark_dir_edit = DragDropLineEdit()
-        self.watermark_dir_edit.setPlaceholderText("选择目录或图片（支持批量拖拽多个文件）")
-        self.watermark_dir_edit.setMinimumHeight(40)
-        dir_btn = QPushButton("浏览")
-        dir_btn.clicked.connect(lambda: self.select_dir(self.watermark_dir_edit))
-        dir_layout.addWidget(self.watermark_dir_edit)
-        dir_layout.addWidget(dir_btn)
-        layout.addWidget(dir_group)
+        file_group = QGroupBox("选择图片")
+        file_layout = QVBoxLayout(file_group)
 
-        type_group = QGroupBox("水印类型")
-        type_layout = QHBoxLayout(type_group)
-        type_layout.setSpacing(12)
-        type_layout.addWidget(QLabel("类型"))
-        type_layout.addWidget(QLabel(":"))
-        self.watermark_type_combo = QComboBox()
-        self.watermark_type_combo.addItems(["文字水印", "图片水印"])
-        self.watermark_type_combo.currentTextChanged.connect(self.switch_watermark_type)
-        type_layout.addWidget(self.watermark_type_combo)
-        type_layout.addStretch()
-        layout.addWidget(type_group)
+        self.watermark_input = DragDropLineEdit()
+        self.watermark_input.setPlaceholderText("拖拽图片文件夹或图片文件到这里")
+        file_layout.addWidget(self.watermark_input)
 
-        self.text_watermark_group = QGroupBox("文字水印参数")
-        text_layout = QVBoxLayout(self.text_watermark_group)
-        text_layout.setSpacing(16)
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
 
-        content_layout = QHBoxLayout()
-        content_layout.setSpacing(12)
-        content_layout.addWidget(QLabel("水印文字"))
-        content_layout.addWidget(QLabel(":"))
-        self.watermark_content_edit = QLineEdit()
-        self.watermark_content_edit.setPlaceholderText("例如：我的作品")
-        content_layout.addWidget(self.watermark_content_edit)
-        content_layout.addStretch()
-        text_layout.addLayout(content_layout)
+        select_btn = QPushButton("选择文件夹")
+        select_btn.clicked.connect(lambda: self.select_folder(self.watermark_input))
+        btn_layout.addWidget(select_btn)
+        btn_layout.addStretch()
 
-        font_layout = QHBoxLayout()
-        font_layout.setSpacing(12)
-        font_layout.addWidget(QLabel("字体文件"))
-        font_layout.addWidget(QLabel(":"))
-        self.watermark_font_edit = QLineEdit()
-        self.watermark_font_edit.setPlaceholderText("可选，默认字体")
-        font_btn = QPushButton("浏览")
-        font_btn.clicked.connect(lambda: self.select_file(self.watermark_font_edit, "字体文件 (*.ttf *.otf)"))
-        font_layout.addWidget(self.watermark_font_edit)
-        font_layout.addWidget(font_btn)
-        font_layout.addStretch()
-        text_layout.addLayout(font_layout)
+        file_layout.addLayout(btn_layout)
+        layout.addWidget(file_group)
 
-        row_layout = QHBoxLayout()
-        row_layout.setSpacing(16)
-
-        size_layout = QHBoxLayout()
-        size_layout.addWidget(QLabel("文字大小"))
-        size_layout.addWidget(QLabel(":"))
-        self.watermark_size_spin = QSpinBox()
-        self.watermark_size_spin.setRange(8, 100)
-        self.watermark_size_spin.setValue(24)
-        size_layout.addWidget(self.watermark_size_spin)
-        row_layout.addLayout(size_layout)
-
-        color_layout = QHBoxLayout()
-        color_layout.addWidget(QLabel("颜色(RGBA)"))
-        color_layout.addWidget(QLabel(":"))
-        self.watermark_color_edit = QLineEdit()
-        self.watermark_color_edit.setPlaceholderText("例如：(255,255,255,128)")
-        self.watermark_color_edit.setText("(255,255,255,128)")
-        color_layout.addWidget(self.watermark_color_edit)
-        row_layout.addLayout(color_layout)
-
-        opacity_layout = QHBoxLayout()
-        opacity_layout.addWidget(QLabel("透明度"))
-        opacity_layout.addWidget(QLabel(":"))
-        self.watermark_opacity_spin = QSpinBox()
-        self.watermark_opacity_spin.setRange(0, 255)
-        self.watermark_opacity_spin.setValue(128)
-        opacity_layout.addWidget(self.watermark_opacity_spin)
-        row_layout.addLayout(opacity_layout)
-        row_layout.addStretch()
-        text_layout.addLayout(row_layout)
-
-        layout.addWidget(self.text_watermark_group)
-
-        self.image_watermark_group = QGroupBox("图片水印参数")
-        image_layout = QVBoxLayout(self.image_watermark_group)
-        image_layout.setSpacing(16)
-        self.image_watermark_group.setVisible(False)
-
-        watermark_path_layout = QHBoxLayout()
-        watermark_path_layout.setSpacing(12)
-        watermark_path_layout.addWidget(QLabel("水印图片"))
-        watermark_path_layout.addWidget(QLabel(":"))
-        self.watermark_path_edit = DragDropLineEdit()
-        self.watermark_path_edit.setPlaceholderText("选择水印图片（可拖拽文件到这里）")
-        watermark_path_btn = QPushButton("浏览")
-        watermark_path_btn.clicked.connect(
-            lambda: self.select_file(self.watermark_path_edit, "图片文件 (*.png *.jpg *.webp)"))
-        watermark_path_layout.addWidget(self.watermark_path_edit)
-        watermark_path_layout.addWidget(watermark_path_btn)
-        watermark_path_layout.addStretch()
-        image_layout.addLayout(watermark_path_layout)
-
-        img_size_opacity_layout = QHBoxLayout()
-        img_size_opacity_layout.setSpacing(16)
-
-        img_size_layout = QHBoxLayout()
-        img_size_layout.addWidget(QLabel("水印尺寸"))
-        img_size_layout.addWidget(QLabel(":"))
-        self.watermark_img_size_spin = QSpinBox()
-        self.watermark_img_size_spin.setRange(10, 500)
-        self.watermark_img_size_spin.setValue(50)
-        img_size_layout.addWidget(self.watermark_img_size_spin)
-        img_size_opacity_layout.addLayout(img_size_layout)
-
-        img_opacity_layout = QHBoxLayout()
-        img_opacity_layout.addWidget(QLabel("透明度"))
-        img_opacity_layout.addWidget(QLabel(":"))
-        self.watermark_img_opacity_spin = QSpinBox()
-        self.watermark_img_opacity_spin.setRange(0, 255)
-        self.watermark_img_opacity_spin.setValue(128)
-        img_opacity_layout.addWidget(self.watermark_img_opacity_spin)
-        img_size_opacity_layout.addLayout(img_opacity_layout)
-        img_size_opacity_layout.addStretch()
-        image_layout.addLayout(img_size_opacity_layout)
-
-        layout.addWidget(self.image_watermark_group)
-
-        action_layout = QHBoxLayout()
-        action_layout.setSpacing(16)
-        self.watermark_run_btn = QPushButton("应用")
-        self.watermark_run_btn.clicked.connect(self.run_watermark)
-        action_layout.addWidget(self.watermark_run_btn)
-        action_layout.addStretch()
-        layout.addLayout(action_layout)
-
-        progress_group = QGroupBox("进度")
-        progress_layout = QHBoxLayout(progress_group)
-        self.watermark_progress_bar = QProgressBar()
-        self.watermark_progress_bar.setRange(0, 100)
-        self.watermark_progress_bar.setValue(0)
-        progress_layout.addWidget(self.watermark_progress_bar)
-        layout.addWidget(progress_group)
-
-        log_group = QGroupBox("执行日志")
-        log_layout = QVBoxLayout(log_group)
-        self.watermark_log_edit = QTextEdit()
-        self.watermark_log_edit.setReadOnly(True)
-        self.watermark_log_edit.setMinimumHeight(150)
-        log_layout.addWidget(self.watermark_log_edit)
-        layout.addWidget(log_group)
-
-    def init_modify_time_tab(self):
-        tab = QWidget()
-        self.tab_widget.addTab(tab, "批量修改文件时间")
-
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(20)
-
-        dir_group = QGroupBox("目标目录")
-        dir_layout = QHBoxLayout(dir_group)
-        dir_layout.setSpacing(12)
-        self.modify_time_dir_edit = DragDropLineEdit()
-        self.modify_time_dir_edit.setPlaceholderText("选择目录或文件（支持批量拖拽多个文件）")
-        self.modify_time_dir_edit.setMinimumHeight(40)
-        dir_btn = QPushButton("浏览")
-        dir_btn.clicked.connect(lambda: self.select_dir(self.modify_time_dir_edit))
-        dir_layout.addWidget(self.modify_time_dir_edit)
-        dir_layout.addWidget(dir_btn)
-        layout.addWidget(dir_group)
-
-        time_group = QGroupBox("时间参数")
-        time_layout = QVBoxLayout(time_group)
-        time_layout.setSpacing(16)
-
-        time_layout1 = QHBoxLayout()
-        time_layout1.setSpacing(12)
-        time_layout1.addWidget(QLabel("目标时间"))
-        time_layout1.addWidget(QLabel(":"))
-        self.modify_time_datetime = QDateTimeEdit()
-        self.modify_time_datetime.setDateTime(QDateTime.currentDateTime())
-        self.modify_time_datetime.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        time_layout1.addWidget(self.modify_time_datetime)
-        time_layout1.addStretch()
-        time_layout.addLayout(time_layout1)
-
-        time_layout2 = QHBoxLayout()
-        time_layout2.setSpacing(12)
-        time_layout2.addWidget(QLabel("修改类型"))
-        time_layout2.addWidget(QLabel(":"))
-        self.modify_time_type_combo = QComboBox()
-        self.modify_time_type_combo.addItems(["创建时间和修改时间", "仅创建时间", "仅修改时间"])
-        time_layout2.addWidget(self.modify_time_type_combo)
-        time_layout2.addStretch()
-        time_layout.addLayout(time_layout2)
-
-        layout.addWidget(time_group)
-
-        action_layout = QHBoxLayout()
-        action_layout.setSpacing(16)
-        self.modify_time_run_btn = QPushButton("应用")
-        self.modify_time_run_btn.clicked.connect(self.run_modify_time)
-        action_layout.addWidget(self.modify_time_run_btn)
-        action_layout.addStretch()
-        layout.addLayout(action_layout)
-
-        progress_group = QGroupBox("进度")
-        progress_layout = QHBoxLayout(progress_group)
-        self.modify_time_progress_bar = QProgressBar()
-        self.modify_time_progress_bar.setRange(0, 100)
-        self.modify_time_progress_bar.setValue(0)
-        progress_layout.addWidget(self.modify_time_progress_bar)
-        layout.addWidget(progress_group)
-
-        log_group = QGroupBox("执行日志")
-        log_layout = QVBoxLayout(log_group)
-        self.modify_time_log_edit = QTextEdit()
-        self.modify_time_log_edit.setReadOnly(True)
-        self.modify_time_log_edit.setMinimumHeight(150)
-        log_layout.addWidget(self.modify_time_log_edit)
-        layout.addWidget(log_group)
-
-    def init_extract_exif_tab(self):
-        tab = QWidget()
-        self.tab_widget.addTab(tab, "提取图片EXIF信息")
-
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(20)
-
-        dir_group = QGroupBox("图片目录")
-        dir_layout = QHBoxLayout(dir_group)
-        dir_layout.setSpacing(12)
-        self.extract_exif_dir_edit = DragDropLineEdit()
-        self.extract_exif_dir_edit.setPlaceholderText("选择目录或图片（支持批量拖拽多个文件）")
-        self.extract_exif_dir_edit.setMinimumHeight(40)
-        dir_btn = QPushButton("浏览")
-        dir_btn.clicked.connect(lambda: self.select_dir(self.extract_exif_dir_edit))
-        dir_layout.addWidget(self.extract_exif_dir_edit)
-        dir_layout.addWidget(dir_btn)
-        layout.addWidget(dir_group)
-
-        output_group = QGroupBox("输出设置")
-        output_layout = QHBoxLayout(output_group)
-        output_layout.setSpacing(12)
-        output_layout.addWidget(QLabel("CSV保存路径"))
-        output_layout.addWidget(QLabel(":"))
-        self.extract_exif_output_edit = QLineEdit()
-        self.extract_exif_output_edit.setPlaceholderText("默认：目录名_exif.csv")
-        output_btn = QPushButton("浏览")
-        output_btn.clicked.connect(lambda: self.select_save_file(self.extract_exif_output_edit, "CSV文件 (*.csv)"))
-        output_layout.addWidget(self.extract_exif_output_edit)
-        output_layout.addWidget(output_btn)
-        output_layout.addStretch()
-        layout.addWidget(output_group)
-
-        action_layout = QHBoxLayout()
-        action_layout.setSpacing(16)
-        self.extract_exif_run_btn = QPushButton("应用")
-        self.extract_exif_run_btn.clicked.connect(self.run_extract_exif)
-        action_layout.addWidget(self.extract_exif_run_btn)
-        action_layout.addStretch()
-        layout.addLayout(action_layout)
-
-        progress_group = QGroupBox("进度")
-        progress_layout = QHBoxLayout(progress_group)
-        self.extract_exif_progress_bar = QProgressBar()
-        self.extract_exif_progress_bar.setRange(0, 100)
-        self.extract_exif_progress_bar.setValue(0)
-        progress_layout.addWidget(self.extract_exif_progress_bar)
-        layout.addWidget(progress_group)
-
-        log_group = QGroupBox("执行日志")
-        log_layout = QVBoxLayout(log_group)
-        self.extract_exif_log_edit = QTextEdit()
-        self.extract_exif_log_edit.setReadOnly(True)
-        self.extract_exif_log_edit.setMinimumHeight(150)
-        log_layout.addWidget(self.extract_exif_log_edit)
-        layout.addWidget(log_group)
-
-    def init_copy_move_tab(self):
-        tab = QWidget()
-        self.tab_widget.addTab(tab, "批量复制/移动文件")
-
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(20)
-
-        src_group = QGroupBox("源目录")
-        src_layout = QHBoxLayout(src_group)
-        src_layout.setSpacing(12)
-        self.copy_move_src_edit = DragDropLineEdit()
-        self.copy_move_src_edit.setPlaceholderText("选择目录或文件（支持批量拖拽多个文件）")
-        self.copy_move_src_edit.setMinimumHeight(40)
-        src_btn = QPushButton("浏览")
-        src_btn.clicked.connect(lambda: self.select_dir(self.copy_move_src_edit))
-        src_layout.addWidget(self.copy_move_src_edit)
-        src_layout.addWidget(src_btn)
-        layout.addWidget(src_group)
-
-        dest_group = QGroupBox("目标目录")
-        dest_layout = QHBoxLayout(dest_group)
-        dest_layout.setSpacing(12)
-        self.copy_move_dest_edit = DragDropLineEdit()
-        self.copy_move_dest_edit.setPlaceholderText("选择目标目录（可拖拽文件夹/文件到这里）")
-        self.copy_move_dest_edit.setMinimumHeight(40)
-        dest_btn = QPushButton("浏览")
-        dest_btn.clicked.connect(lambda: self.select_dir(self.copy_move_dest_edit))
-        dest_layout.addWidget(self.copy_move_dest_edit)
-        dest_layout.addWidget(dest_btn)
-        layout.addWidget(dest_group)
-
-        param_group = QGroupBox("操作参数")
-        param_layout = QVBoxLayout(param_group)
-        param_layout.setSpacing(16)
+        setting_group = QGroupBox("水印设置")
+        setting_layout = QVBoxLayout(setting_group)
+        setting_layout.setSpacing(16)
 
         type_layout = QHBoxLayout()
-        type_layout.setSpacing(12)
-        type_layout.addWidget(QLabel("操作类型"))
-        type_layout.addWidget(QLabel(":"))
-        self.copy_move_mode_combo = QComboBox()
-        self.copy_move_mode_combo.addItems(["复制", "移动"])
-        type_layout.addWidget(self.copy_move_mode_combo)
-        type_layout.addStretch()
-        param_layout.addLayout(type_layout)
+        type_layout.addWidget(QLabel("水印类型："))
+        self.watermark_type = QComboBox()
+        self.watermark_type.addItems(["文字水印", "图片水印"])
+        self.watermark_type.currentIndexChanged.connect(self.toggle_watermark_settings)
+        type_layout.addWidget(self.watermark_type)
+        setting_layout.addLayout(type_layout)
 
-        exclude_layout = QHBoxLayout()
-        exclude_layout.setSpacing(12)
-        exclude_layout.addWidget(QLabel("排除扩展名"))
-        exclude_layout.addWidget(QLabel(":"))
-        self.copy_move_exclude_edit = QLineEdit()
-        self.copy_move_exclude_edit.setPlaceholderText("例如：zip,log,tmp")
-        exclude_layout.addWidget(self.copy_move_exclude_edit)
-        exclude_layout.addStretch()
-        param_layout.addLayout(exclude_layout)
+        self.text_watermark_group = QGroupBox("文字水印设置")
+        text_layout = QVBoxLayout(self.text_watermark_group)
 
-        layout.addWidget(param_group)
+        text_content_layout = QHBoxLayout()
+        text_content_layout.addWidget(QLabel("水印文字："))
+        self.watermark_text = QLineEdit()
+        self.watermark_text.setText("© 版权所有")
+        text_content_layout.addWidget(self.watermark_text)
+        text_layout.addLayout(text_content_layout)
 
-        action_layout = QHBoxLayout()
-        action_layout.setSpacing(16)
-        self.copy_move_run_btn = QPushButton("应用")
-        self.copy_move_run_btn.clicked.connect(self.run_copy_move)
-        action_layout.addWidget(self.copy_move_run_btn)
-        action_layout.addStretch()
-        layout.addLayout(action_layout)
+        text_color_layout = QHBoxLayout()
+        text_color_layout.addWidget(QLabel("文字颜色："))
+        self.watermark_color = QLineEdit()
+        self.watermark_color.setText("#FFFFFF")
+        text_color_layout.addWidget(self.watermark_color)
+        text_layout.addLayout(text_color_layout)
+
+        text_size_layout = QHBoxLayout()
+        text_size_layout.addWidget(QLabel("文字大小："))
+        self.watermark_size = QSpinBox()
+        self.watermark_size.setRange(10, 100)
+        self.watermark_size.setValue(24)
+        text_size_layout.addWidget(self.watermark_size)
+        text_layout.addLayout(text_size_layout)
+
+        text_opacity_layout = QHBoxLayout()
+        text_opacity_layout.addWidget(QLabel("透明度："))
+        self.watermark_opacity = QSpinBox()
+        self.watermark_opacity.setRange(1, 100)
+        self.watermark_opacity.setValue(50)
+        text_opacity_layout.addWidget(self.watermark_opacity)
+        text_layout.addLayout(text_opacity_layout)
+
+        setting_layout.addWidget(self.text_watermark_group)
+
+        self.image_watermark_group = QGroupBox("图片水印设置")
+        image_layout = QVBoxLayout(self.image_watermark_group)
+
+        image_path_layout = QHBoxLayout()
+        image_path_layout.addWidget(QLabel("水印图片："))
+        self.watermark_image_path = QLineEdit()
+        image_path_layout.addWidget(self.watermark_image_path)
+        browse_btn = QPushButton("浏览")
+        browse_btn.clicked.connect(self.browse_watermark_image)
+        image_path_layout.addWidget(browse_btn)
+        image_layout.addLayout(image_path_layout)
+
+        image_opacity_layout = QHBoxLayout()
+        image_opacity_layout.addWidget(QLabel("透明度："))
+        self.watermark_image_opacity = QSpinBox()
+        self.watermark_image_opacity.setRange(1, 100)
+        self.watermark_image_opacity.setValue(50)
+        image_opacity_layout.addWidget(self.watermark_image_opacity)
+        image_layout.addLayout(image_opacity_layout)
+
+        setting_layout.addWidget(self.image_watermark_group)
+
+        self.image_watermark_group.hide()
+
+        layout.addWidget(setting_group)
 
         progress_group = QGroupBox("进度")
-        progress_layout = QHBoxLayout(progress_group)
-        self.copy_move_progress_bar = QProgressBar()
-        self.copy_move_progress_bar.setRange(0, 100)
-        self.copy_move_progress_bar.setValue(0)
-        progress_layout.addWidget(self.copy_move_progress_bar)
+        progress_layout = QVBoxLayout(progress_group)
+        self.watermark_progress = QProgressBar()
+        self.watermark_progress.setValue(0)
+        progress_layout.addWidget(self.watermark_progress)
         layout.addWidget(progress_group)
 
-        log_group = QGroupBox("执行日志")
+        log_group = QGroupBox("日志")
         log_layout = QVBoxLayout(log_group)
-        self.copy_move_log_edit = QTextEdit()
-        self.copy_move_log_edit.setReadOnly(True)
-        self.copy_move_log_edit.setMinimumHeight(150)
-        log_layout.addWidget(self.copy_move_log_edit)
+        self.watermark_log = QTextEdit()
+        self.watermark_log.setReadOnly(True)
+        self.watermark_log.setMaximumHeight(150)
+        log_layout.addWidget(self.watermark_log)
         layout.addWidget(log_group)
 
-    def select_dir(self, line_edit):
-        """选择文件或文件夹"""
-        from PyQt5.QtWidgets import QMessageBox
-        # 使用MessageBox让用户选择
-        reply = QMessageBox.question(
-            self,
-            "选择类型",
-            "请选择要选择的类型：\n\n点击 '是' 选择文件夹\n点击 '否' 选择文件",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.Yes
+        apply_btn = QPushButton("添加水印")
+        apply_btn.clicked.connect(self.add_watermark)
+        layout.addWidget(apply_btn)
+
+        self.tab_widget.addTab(tab, "💧 图片水印")
+
+    def init_modify_time_tab(self):
+        """修改文件时间界面"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
+
+        file_group = QGroupBox("选择文件")
+        file_layout = QVBoxLayout(file_group)
+
+        self.modify_time_input = DragDropLineEdit()
+        self.modify_time_input.setPlaceholderText("拖拽文件或文件夹到这里")
+        file_layout.addWidget(self.modify_time_input)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
+
+        select_btn = QPushButton("选择文件")
+        select_btn.clicked.connect(lambda: self.select_files(self.modify_time_input))
+        btn_layout.addWidget(select_btn)
+        btn_layout.addStretch()
+
+        file_layout.addLayout(btn_layout)
+        layout.addWidget(file_group)
+
+        setting_group = QGroupBox("时间设置")
+        setting_layout = QVBoxLayout(setting_group)
+        setting_layout.setSpacing(16)
+
+        create_time_layout = QHBoxLayout()
+        create_time_layout.addWidget(QLabel("创建时间："))
+        self.create_time_edit = QDateTimeEdit(QDateTime.currentDateTime())
+        self.create_time_edit.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        create_time_layout.addWidget(self.create_time_edit)
+        setting_layout.addLayout(create_time_layout)
+
+        modify_time_layout = QHBoxLayout()
+        modify_time_layout.addWidget(QLabel("修改时间："))
+        self.modify_time_edit = QDateTimeEdit(QDateTime.currentDateTime())
+        self.modify_time_edit.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        modify_time_layout.addWidget(self.modify_time_edit)
+        setting_layout.addLayout(modify_time_layout)
+
+        layout.addWidget(setting_group)
+
+        progress_group = QGroupBox("进度")
+        progress_layout = QVBoxLayout(progress_group)
+        self.modify_time_progress = QProgressBar()
+        self.modify_time_progress.setValue(0)
+        progress_layout.addWidget(self.modify_time_progress)
+        layout.addWidget(progress_group)
+
+        log_group = QGroupBox("日志")
+        log_layout = QVBoxLayout(log_group)
+        self.modify_time_log = QTextEdit()
+        self.modify_time_log.setReadOnly(True)
+        self.modify_time_log.setMaximumHeight(150)
+        log_layout.addWidget(self.modify_time_log)
+        layout.addWidget(log_group)
+
+        apply_btn = QPushButton("修改时间")
+        apply_btn.clicked.connect(self.modify_file_time)
+        layout.addWidget(apply_btn)
+
+        self.tab_widget.addTab(tab, "⏰ 修改时间")
+
+    def init_extract_exif_tab(self):
+        """提取EXIF信息界面"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
+
+        file_group = QGroupBox("选择图片")
+        file_layout = QVBoxLayout(file_group)
+
+        self.exif_input = DragDropLineEdit()
+        self.exif_input.setPlaceholderText("拖拽图片文件夹或图片文件到这里")
+        file_layout.addWidget(self.exif_input)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
+
+        select_btn = QPushButton("选择文件夹")
+        select_btn.clicked.connect(lambda: self.select_folder(self.exif_input))
+        btn_layout.addWidget(select_btn)
+        btn_layout.addStretch()
+
+        file_layout.addLayout(btn_layout)
+        layout.addWidget(file_group)
+
+        setting_group = QGroupBox("输出设置")
+        setting_layout = QVBoxLayout(setting_group)
+        setting_layout.setSpacing(16)
+
+        output_layout = QHBoxLayout()
+        output_layout.addWidget(QLabel("输出CSV路径："))
+        self.exif_output = QLineEdit()
+        self.exif_output.setPlaceholderText("自动生成")
+        output_layout.addWidget(self.exif_output)
+        browse_btn = QPushButton("浏览")
+        browse_btn.clicked.connect(self.browse_exif_output)
+        output_layout.addWidget(browse_btn)
+        setting_layout.addLayout(output_layout)
+
+        layout.addWidget(setting_group)
+
+        progress_group = QGroupBox("进度")
+        progress_layout = QVBoxLayout(progress_group)
+        self.exif_progress = QProgressBar()
+        self.exif_progress.setValue(0)
+        progress_layout.addWidget(self.exif_progress)
+        layout.addWidget(progress_group)
+
+        log_group = QGroupBox("日志")
+        log_layout = QVBoxLayout(log_group)
+        self.exif_log = QTextEdit()
+        self.exif_log.setReadOnly(True)
+        self.exif_log.setMaximumHeight(150)
+        log_layout.addWidget(self.exif_log)
+        layout.addWidget(log_group)
+
+        apply_btn = QPushButton("提取EXIF")
+        apply_btn.clicked.connect(self.extract_exif)
+        layout.addWidget(apply_btn)
+
+        self.tab_widget.addTab(tab, "📊 提取EXIF")
+
+    def init_copy_move_tab(self):
+        """复制/移动文件界面"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
+
+        file_group = QGroupBox("选择文件")
+        file_layout = QVBoxLayout(file_group)
+
+        self.copy_move_input = DragDropLineEdit()
+        self.copy_move_input.setPlaceholderText("拖拽文件或文件夹到这里")
+        file_layout.addWidget(self.copy_move_input)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
+
+        select_btn = QPushButton("选择文件")
+        select_btn.clicked.connect(lambda: self.select_files(self.copy_move_input))
+        btn_layout.addWidget(select_btn)
+        btn_layout.addStretch()
+
+        file_layout.addLayout(btn_layout)
+        layout.addWidget(file_group)
+
+        setting_group = QGroupBox("操作设置")
+        setting_layout = QVBoxLayout(setting_group)
+        setting_layout.setSpacing(16)
+
+        type_layout = QHBoxLayout()
+        type_layout.addWidget(QLabel("操作类型："))
+        self.copy_move_combo = QComboBox()
+        self.copy_move_combo.addItems(["复制", "移动"])
+        type_layout.addWidget(self.copy_move_combo)
+        setting_layout.addLayout(type_layout)
+
+        target_layout = QHBoxLayout()
+        target_layout.addWidget(QLabel("目标目录："))
+        self.copy_move_target = QLineEdit()
+        self.copy_move_target.setPlaceholderText("选择目标目录")
+        target_layout.addWidget(self.copy_move_target)
+        browse_btn = QPushButton("浏览")
+        browse_btn.clicked.connect(self.browse_copy_move_target)
+        target_layout.addWidget(browse_btn)
+        setting_layout.addLayout(target_layout)
+
+        layout.addWidget(setting_group)
+
+        progress_group = QGroupBox("进度")
+        progress_layout = QVBoxLayout(progress_group)
+        self.copy_move_progress = QProgressBar()
+        self.copy_move_progress.setValue(0)
+        progress_layout.addWidget(self.copy_move_progress)
+        layout.addWidget(progress_group)
+
+        log_group = QGroupBox("日志")
+        log_layout = QVBoxLayout(log_group)
+        self.copy_move_log = QTextEdit()
+        self.copy_move_log.setReadOnly(True)
+        self.copy_move_log.setMaximumHeight(150)
+        log_layout.addWidget(self.copy_move_log)
+        layout.addWidget(log_group)
+
+        apply_btn = QPushButton("执行")
+        apply_btn.clicked.connect(self.copy_move_files)
+        layout.addWidget(apply_btn)
+
+        self.tab_widget.addTab(tab, "📥 复制/移动")
+
+    def toggle_watermark_settings(self):
+        """切换水印设置界面"""
+        if self.watermark_type.currentText() == "文字水印":
+            self.text_watermark_group.show()
+            self.image_watermark_group.hide()
+        else:
+            self.text_watermark_group.hide()
+            self.image_watermark_group.show()
+
+    def select_files(self, line_edit):
+        """选择多个文件"""
+        files, _ = QFileDialog.getOpenFileNames(
+            self, "选择文件", "", "所有文件 (*.*)"
         )
-        
-        if reply == QMessageBox.Yes:
-            # 选择文件夹
-            dir_path = QFileDialog.getExistingDirectory(self, "选择文件夹")
-            if dir_path:
-                line_edit.setText(dir_path)
-                if hasattr(line_edit, 'on_files_changed') and line_edit.on_files_changed:
-                    line_edit.on_files_changed()
-        else:
-            # 选择文件
-            file_path, _ = QFileDialog.getOpenFileName(
-                self,
-                "选择文件",
-                "",
-                "所有文件 (*.*)"
-            )
-            if file_path:
-                line_edit.setText(file_path)
-                if hasattr(line_edit, 'on_files_changed') and line_edit.on_files_changed:
-                    line_edit.on_files_changed()
-
-    def select_file(self, line_edit, filter_str):
-        file_path, _ = QFileDialog.getOpenFileName(self, "选择文件", "", filter_str)
-        if file_path:
-            line_edit.setText(file_path)
-            if hasattr(line_edit, 'on_files_changed') and line_edit.on_files_changed:
-                line_edit.on_files_changed()
-                
-    def toggle_auto_number(self):
-        """切换是否显示自动编号设置"""
-        self.auto_number_group.setVisible(self.rename_use_auto_number.isChecked())
-
-    def update_rename_file_settings(self):
-        """当文件选择变化时，动态更新单个文件设置框"""
-        dir_path = self.rename_dir_edit.text().strip()
-        if not dir_path:
-            return
-            
-        # 清空现有设置框
-        for i in reversed(range(self.rename_files_layout.count())):
-            widget = self.rename_files_layout.itemAt(i).widget()
-            if widget:
-                widget.setParent(None)
-        
-        # 解析所有文件
-        file_list = []
-        file_separator = "|||"
-        if file_separator in dir_path:
-            paths = dir_path.split(file_separator)
-            for path in paths:
-                path = path.strip()
-                if path:
-                    p = Path(path)
-                    if p.is_file():
-                        file_list.append(p)
-                    elif p.is_dir():
-                        file_list.extend([f for f in p.glob("*") if f.is_file()])
-        else:
-            p = Path(dir_path)
-            if p.is_file():
-                file_list.append(p)
-            elif p.is_dir():
-                file_list = [f for f in p.glob("*") if f.is_file()]
-        
-        # 为每个文件生成设置框
-        self.rename_file_settings = []
-        for file_path in file_list:
-            setting_group = QGroupBox(file_path.name)
-            setting_layout = QHBoxLayout(setting_group)
-            setting_layout.setSpacing(12)
-            
-            # 复选框 - 是否处理此文件
-            checkbox = QCheckBox("处理")
-            checkbox.setChecked(True)
-            setting_layout.addWidget(checkbox)
-            
-            # 原始文件名显示
-            original_label = QLabel(f"原名：{file_path.name}")
-            original_label.setStyleSheet("color: #666; font-size: 11px;")
-            setting_layout.addWidget(original_label)
-            
-            setting_layout.addStretch()
-            
-            # 自定义前缀
-            custom_prefix_edit = QLineEdit()
-            custom_prefix_edit.setPlaceholderText("自定义前缀")
-            custom_prefix_edit.setMaximumWidth(120)
-            setting_layout.addWidget(QLabel("前缀"))
-            setting_layout.addWidget(custom_prefix_edit)
-            
-            # 自定义后缀
-            custom_suffix_edit = QLineEdit()
-            custom_suffix_edit.setPlaceholderText("自定义后缀")
-            custom_suffix_edit.setMaximumWidth(120)
-            setting_layout.addWidget(QLabel("后缀"))
-            setting_layout.addWidget(custom_suffix_edit)
-            
-            # 自定义新名称
-            custom_name_edit = QLineEdit()
-            custom_name_edit.setPlaceholderText("自定义新文件名")
-            custom_name_edit.setMinimumWidth(200)
-            setting_layout.addWidget(QLabel("重命名"))
-            setting_layout.addWidget(custom_name_edit)
-            
-            self.rename_file_settings.append({
-                'file_path': file_path,
-                'checkbox': checkbox,
-                'custom_prefix': custom_prefix_edit,
-                'custom_suffix': custom_suffix_edit,
-                'custom_name': custom_name_edit
-            })
-            
-            self.rename_files_layout.addWidget(setting_group)
-
-    def select_save_file(self, line_edit, filter_str):
-        file_path, _ = QFileDialog.getSaveFileName(self, "选择保存位置", "", filter_str)
-        if file_path:
-            line_edit.setText(file_path)
-
-    def switch_watermark_type(self):
-        if "文字" in self.watermark_type_combo.currentText():
-            self.text_watermark_group.setVisible(True)
-            self.image_watermark_group.setVisible(False)
-        else:
-            self.text_watermark_group.setVisible(False)
-            self.image_watermark_group.setVisible(True)
-
-    def clear_log(self, log_edit):
-        log_edit.clear()
-
-    def append_log(self, log_edit, msg):
-        log_edit.append(msg)
-        log_edit.moveCursor(log_edit.textCursor().End)
-
-    def run_rename(self):
-        dir_path = self.rename_dir_edit.text().strip()
-        if not dir_path:
-            QMessageBox.warning(self, "警告", "请选择文件或目录！")
-            return
-
-        self.clear_log(self.rename_log_edit)
-        self.rename_run_btn.setEnabled(False)
-        
-        # 如果有单个文件设置，逐个处理
-        if hasattr(self, 'rename_file_settings') and self.rename_file_settings:
-            # 获取整体设置
-            global_prefix = self.rename_prefix_edit.text().strip()
-            global_suffix = self.rename_suffix_edit.text().strip()
-            use_auto_number = self.rename_use_auto_number.isChecked()
-            
-            # 自动编号设置
-            name_base = self.rename_name_base_edit.text().strip()
-            start_num = self.rename_start_spin.value()
-            digit_count = self.rename_digit_spin.value()
-            
-            total_files = len(self.rename_file_settings)
-            processed = 0
-            renamed = 0
-            skipped = 0
-            current_num = start_num
-            
-            self.append_log(self.rename_log_edit, "📝 开始处理...")
-            
-            for setting in self.rename_file_settings:
-                if not setting['checkbox'].isChecked():
-                    skipped += 1
-                    processed += 1
-                    self.append_log(self.rename_log_edit, f"⚠️ 跳过：{setting['file_path'].name}")
-                    continue
-                
-                file_path = setting['file_path']
-                old_name = file_path.name
-                name, ext = os.path.splitext(old_name)
-                new_main_name = name
-                
-                # 优先使用单个文件设置
-                custom_name = setting['custom_name'].text().strip()
-                if custom_name:
-                    new_main_name = custom_name
-                else:
-                    if use_auto_number:
-                        # 自动编号模式
-                        new_main_name = f"{name_base}{str(current_num).zfill(digit_count)}"
-                        current_num += 1
-                    
-                    # 应用全局前缀后缀
-                    final_prefix = setting['custom_prefix'].text().strip() or global_prefix
-                    final_suffix = setting['custom_suffix'].text().strip() or global_suffix
-                    
-                    if final_prefix:
-                        new_main_name = final_prefix + new_main_name
-                    if final_suffix:
-                        new_main_name = new_main_name + final_suffix
-                
-                new_name = new_main_name + ext
-                if new_name == old_name:
-                    skipped += 1
-                    processed += 1
-                    self.append_log(self.rename_log_edit, f"⚠️ 跳过（无变化）：{old_name}")
-                    continue
-                
-                new_path = file_path.parent / new_name
-                if new_path.exists():
-                    skipped += 1
-                    processed += 1
-                    self.append_log(self.rename_log_edit, f"⚠️ 跳过（已存在）：{old_name} → {new_name}")
-                    continue
-                
-                try:
-                    file_path.rename(new_path)
-                    renamed += 1
-                    self.append_log(self.rename_log_edit, f"✅ 成功：{old_name} → {new_name}")
-                except Exception as e:
-                    skipped += 1
-                    self.append_log(self.rename_log_edit, f"❌ 失败：{old_name} - {str(e)}")
-                
-                processed += 1
-            
-            self.append_log(self.rename_log_edit, f"\n✅ 完成！共处理 {total_files} 个，成功 {renamed} 个，跳过 {skipped} 个")
-            self.task_finish(True, self.rename_run_btn)
-        else:
-            # 使用原始的批量处理
-            params = {
-                "dir": dir_path,
-                "prefix": self.rename_prefix_edit.text().strip(),
-                "suffix": self.rename_suffix_edit.text().strip(),
-                "find_str": "",
-                "replace_str": ""
-            }
-
-            self.rename_thread = WorkerThread("rename", params)
-            self.rename_thread.log_signal.connect(lambda msg: self.append_log(self.rename_log_edit, msg))
-            self.rename_thread.finish_signal.connect(lambda res: self.task_finish(res, self.rename_run_btn))
-            self.rename_thread.start()
-
-    def run_convert_img(self):
-        dir_path = self.convert_dir_edit.text().strip()
-        if not dir_path or not Path(dir_path).exists():
-            QMessageBox.warning(self, "警告", "请选择有效的图片目录！")
-            return
-
-        self.clear_log(self.convert_log_edit)
-        self.convert_run_btn.setEnabled(False)
-
-        params = {
-            "dir": dir_path,
-            "to_format": self.convert_format_combo.currentText()
-        }
-
-        self.convert_thread = WorkerThread("convert_img", params)
-        self.convert_thread.log_signal.connect(lambda msg: self.append_log(self.convert_log_edit, msg))
-        self.convert_thread.progress_signal.connect(lambda val: self.convert_progress_bar.setValue(val))
-        self.convert_thread.finish_signal.connect(lambda res: self.task_finish(res, self.convert_run_btn))
-        self.convert_thread.start()
-
-    def run_compress(self):
-        dir_path = self.compress_dir_edit.text().strip()
-        if not dir_path or not Path(dir_path).exists():
-            QMessageBox.warning(self, "警告", "请选择有效的目标目录！")
-            return
-
-        self.clear_log(self.compress_log_edit)
-        self.compress_run_btn.setEnabled(False)
-
-        params = {
-            "dir": dir_path,
-            "output": self.compress_output_edit.text().strip(),
-            "exclude": self.compress_exclude_edit.text().strip()
-        }
-
-        self.compress_thread = WorkerThread("compress", params)
-        self.compress_thread.log_signal.connect(lambda msg: self.append_log(self.compress_log_edit, msg))
-        self.compress_thread.progress_signal.connect(lambda val: self.compress_progress_bar.setValue(val))
-        self.compress_thread.finish_signal.connect(lambda res: self.task_finish(res, self.compress_run_btn))
-        self.compress_thread.start()
-
-    def run_classify(self):
-        dir_path = self.classify_dir_edit.text().strip()
-        if not dir_path or not Path(dir_path).exists():
-            QMessageBox.warning(self, "警告", "请选择有效的目标目录！")
-            return
-
-        self.clear_log(self.classify_log_edit)
-        self.classify_run_btn.setEnabled(False)
-
-        mode_text = self.classify_mode_combo.currentText()
-        mode = "ext" if "扩展名" in mode_text else "date"
-
-        params = {
-            "dir": dir_path,
-            "mode": mode
-        }
-
-        self.classify_thread = WorkerThread("classify", params)
-        self.classify_thread.log_signal.connect(lambda msg: self.append_log(self.classify_log_edit, msg))
-        self.classify_thread.progress_signal.connect(lambda val: self.classify_progress_bar.setValue(val))
-        self.classify_thread.finish_signal.connect(lambda res: self.task_finish(res, self.classify_run_btn))
-        self.classify_thread.start()
-
-    def run_watermark(self):
-        dir_path = self.watermark_dir_edit.text().strip()
-        if not dir_path or not Path(dir_path).exists():
-            QMessageBox.warning(self, "警告", "请选择有效的图片目录！")
-            return
-
-        type_text = self.watermark_type_combo.currentText()
-        if "文字" in type_text and not self.watermark_content_edit.text().strip():
-            QMessageBox.warning(self, "警告", "请输入文字水印内容！")
-            return
-        if "图片" in type_text and not self.watermark_path_edit.text().strip():
-            QMessageBox.warning(self, "警告", "请选择水印图片！")
-            return
-
-        self.clear_log(self.watermark_log_edit)
-        self.watermark_run_btn.setEnabled(False)
-
-        params = {
-            "dir": dir_path,
-            "type": "text" if "文字" in type_text else "image",
-            "content": self.watermark_content_edit.text().strip(),
-            "font": self.watermark_font_edit.text().strip(),
-            "size": self.watermark_size_spin.value() if "文字" in type_text else self.watermark_img_size_spin.value(),
-            "color": self.watermark_color_edit.text().strip(),
-            "opacity": self.watermark_opacity_spin.value() if "文字" in type_text else self.watermark_img_opacity_spin.value(),
-            "watermark_path": self.watermark_path_edit.text().strip()
-        }
-
-        self.watermark_thread = WorkerThread("watermark", params)
-        self.watermark_thread.log_signal.connect(lambda msg: self.append_log(self.watermark_log_edit, msg))
-        self.watermark_thread.progress_signal.connect(lambda val: self.watermark_progress_bar.setValue(val))
-        self.watermark_thread.finish_signal.connect(lambda res: self.task_finish(res, self.watermark_run_btn))
-        self.watermark_thread.start()
-
-    def run_modify_time(self):
-        dir_path = self.modify_time_dir_edit.text().strip()
-        if not dir_path or not Path(dir_path).exists():
-            QMessageBox.warning(self, "警告", "请选择有效的目标目录！")
-            return
-
-        self.clear_log(self.modify_time_log_edit)
-        self.modify_time_run_btn.setEnabled(False)
-
-        target_time = self.modify_time_datetime.dateTime().toPyDateTime()
-        time_type_text = self.modify_time_type_combo.currentText()
-        if "创建时间和修改时间" in time_type_text:
-            time_type = "both"
-        elif "仅创建时间" in time_type_text:
-            time_type = "create"
-        else:
-            time_type = "modify"
-
-        params = {
-            "dir": dir_path,
-            "target_time": target_time,
-            "time_type": time_type
-        }
-
-        self.modify_time_thread = WorkerThread("modify_time", params)
-        self.modify_time_thread.log_signal.connect(lambda msg: self.append_log(self.modify_time_log_edit, msg))
-        self.modify_time_thread.progress_signal.connect(lambda val: self.modify_time_progress_bar.setValue(val))
-        self.modify_time_thread.finish_signal.connect(lambda res: self.task_finish(res, self.modify_time_run_btn))
-        self.modify_time_thread.start()
-
-    def run_extract_exif(self):
-        dir_path = self.extract_exif_dir_edit.text().strip()
-        if not dir_path or not Path(dir_path).exists():
-            QMessageBox.warning(self, "警告", "请选择有效的图片目录！")
-            return
-
-        output_csv = self.extract_exif_output_edit.text().strip()
-        if not output_csv:
-            path_obj = Path(dir_path)
-            if path_obj.is_file():
-                output_csv = f"{path_obj.parent / path_obj.stem}_exif.csv"
+        if files:
+            if len(files) == 1:
+                line_edit.setText(files[0])
             else:
-                output_csv = f"{dir_path}_exif.csv"
+                line_edit.setText(line_edit.file_list_separator.join(files))
 
-        self.clear_log(self.extract_exif_log_edit)
-        self.extract_exif_run_btn.setEnabled(False)
+    def select_folder(self, line_edit):
+        """选择文件夹"""
+        folder = QFileDialog.getExistingDirectory(self, "选择文件夹")
+        if folder:
+            line_edit.setText(folder)
 
-        params = {
-            "dir": dir_path,
-            "output_csv": output_csv
-        }
+    def browse_compress_output(self):
+        """浏览压缩输出路径"""
+        path, _ = QFileDialog.getSaveFileName(
+            self, "选择输出文件", "", "ZIP文件 (*.zip)"
+        )
+        if path:
+            if not path.endswith(".zip"):
+                path += ".zip"
+            self.compress_output.setText(path)
 
-        self.extract_exif_thread = WorkerThread("extract_exif", params)
-        self.extract_exif_thread.log_signal.connect(lambda msg: self.append_log(self.extract_exif_log_edit, msg))
-        self.extract_exif_thread.progress_signal.connect(lambda val: self.extract_exif_progress_bar.setValue(val))
-        self.extract_exif_thread.finish_signal.connect(lambda res: self.task_finish(res, self.extract_exif_run_btn))
-        self.extract_exif_thread.start()
+    def browse_classify_output(self):
+        """浏览分类输出目录"""
+        folder = QFileDialog.getExistingDirectory(self, "选择输出目录")
+        if folder:
+            self.classify_output.setText(folder)
 
-    def run_copy_move(self):
-        src_dir = self.copy_move_src_edit.text().strip()
-        dest_dir = self.copy_move_dest_edit.text().strip()
-        if not src_dir or not Path(src_dir).exists():
-            QMessageBox.warning(self, "警告", "请选择有效的源目录！")
-            return
-        if not dest_dir:
-            QMessageBox.warning(self, "警告", "请选择有效的目标目录！")
-            return
+    def browse_watermark_image(self):
+        """浏览水印图片"""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "选择水印图片", "", "图片文件 (*.png *.jpg *.jpeg)"
+        )
+        if path:
+            self.watermark_image_path.setText(path)
 
-        self.clear_log(self.copy_move_log_edit)
-        self.copy_move_run_btn.setEnabled(False)
+    def browse_exif_output(self):
+        """浏览EXIF输出路径"""
+        path, _ = QFileDialog.getSaveFileName(
+            self, "选择输出文件", "", "CSV文件 (*.csv)"
+        )
+        if path:
+            if not path.endswith(".csv"):
+                path += ".csv"
+            self.exif_output.setText(path)
 
-        mode = "copy" if "复制" in self.copy_move_mode_combo.currentText() else "move"
-        exclude = self.copy_move_exclude_edit.text().strip()
+    def browse_copy_move_target(self):
+        """浏览复制/移动目标目录"""
+        folder = QFileDialog.getExistingDirectory(self, "选择目标目录")
+        if folder:
+            self.copy_move_target.setText(folder)
 
-        params = {
-            "dir": src_dir,
-            "target_dir": dest_dir,
-            "mode": mode,
-            "exclude": exclude
-        }
+    def get_file_list(self, line_edit):
+        """从输入框获取文件列表"""
+        text = line_edit.text().strip()
+        if not text:
+            return []
 
-        self.copy_move_thread = WorkerThread("copy_move", params)
-        self.copy_move_thread.log_signal.connect(lambda msg: self.append_log(self.copy_move_log_edit, msg))
-        self.copy_move_thread.progress_signal.connect(lambda val: self.copy_move_progress_bar.setValue(val))
-        self.copy_move_thread.finish_signal.connect(lambda res: self.task_finish(res, self.copy_move_run_btn))
-        self.copy_move_thread.start()
-
-    def task_finish(self, result, btn):
-        btn.setEnabled(True)
-        if result:
-            QMessageBox.information(self, "成功", "任务执行完成！")
+        if line_edit.file_list_separator in text:
+            paths = text.split(line_edit.file_list_separator)
         else:
-            QMessageBox.critical(self, "失败", "任务执行失败，请查看日志！")
+            paths = [text]
+
+        file_list = []
+        for path_str in paths:
+            path = Path(path_str)
+            if path.is_file():
+                file_list.append(path)
+            elif path.is_dir():
+                for item in path.rglob("*"):
+                    if item.is_file():
+                        file_list.append(item)
+
+        return file_list
+
+    def rename_files(self):
+        """批量重命名"""
+        files = self.get_file_list(self.rename_input)
+        if not files:
+            QMessageBox.warning(self, "警告", "请先选择文件")
+            return
+
+        prefix = self.rename_prefix.text()
+        suffix = self.rename_suffix.text()
+        start_num = self.rename_start_num.value()
+        num_digits = self.rename_num_digits.value()
+
+        self.rename_log.clear()
+        self.rename_progress.setValue(0)
+
+        worker = WorkerThread(
+            task_type="rename",
+            files=files,
+            prefix=prefix,
+            suffix=suffix,
+            start_num=start_num,
+            num_digits=num_digits
+        )
+        worker.log_signal.connect(self.rename_log.append)
+        worker.progress_signal.connect(self.rename_progress.setValue)
+        worker.finished.connect(lambda: QMessageBox.information(self, "完成", "重命名完成"))
+        worker.start()
+
+    def convert_images(self):
+        """图片格式转换"""
+        files = self.get_file_list(self.convert_input)
+        if not files:
+            QMessageBox.warning(self, "警告", "请先选择文件")
+            return
+
+        to_format = self.convert_to_format.currentText().lower()
+
+        self.convert_log.clear()
+        self.convert_progress.setValue(0)
+
+        worker = WorkerThread(
+            task_type="convert",
+            files=files,
+            to_format=to_format
+        )
+        worker.log_signal.connect(self.convert_log.append)
+        worker.progress_signal.connect(self.convert_progress.setValue)
+        worker.finished.connect(lambda: QMessageBox.information(self, "完成", "转换完成"))
+        worker.start()
+
+    def compress_files(self):
+        """文件压缩"""
+        files = self.get_file_list(self.compress_input)
+        if not files:
+            QMessageBox.warning(self, "警告", "请先选择文件")
+            return
+
+        output = self.compress_output.text().strip()
+        if not output:
+            output = str(files[0].parent / "compressed.zip")
+
+        self.compress_log.clear()
+        self.compress_progress.setValue(0)
+
+        worker = WorkerThread(
+            task_type="compress",
+            files=files,
+            output=output
+        )
+        worker.log_signal.connect(self.compress_log.append)
+        worker.progress_signal.connect(self.compress_progress.setValue)
+        worker.finished.connect(lambda: QMessageBox.information(self, "完成", "压缩完成"))
+        worker.start()
+
+    def classify_files(self):
+        """文件分类"""
+        files = self.get_file_list(self.classify_input)
+        if not files:
+            QMessageBox.warning(self, "警告", "请先选择文件")
+            return
+
+        by_type = "date" if self.classify_by_combo.currentIndex() == 1 else "extension"
+        output = self.classify_output.text().strip()
+        if not output:
+            output = str(files[0].parent / "classified")
+
+        self.classify_log.clear()
+        self.classify_progress.setValue(0)
+
+        worker = WorkerThread(
+            task_type="classify",
+            files=files,
+            by_type=by_type,
+            output=output
+        )
+        worker.log_signal.connect(self.classify_log.append)
+        worker.progress_signal.connect(self.classify_progress.setValue)
+        worker.finished.connect(lambda: QMessageBox.information(self, "完成", "分类完成"))
+        worker.start()
+
+    def add_watermark(self):
+        """添加水印"""
+        files = self.get_file_list(self.watermark_input)
+        if not files:
+            QMessageBox.warning(self, "警告", "请先选择文件")
+            return
+
+        if self.watermark_type.currentText() == "文字水印":
+            worker = WorkerThread(
+                task_type="watermark",
+                files=files,
+                type_="text",
+                content=self.watermark_text.text(),
+                color=self.watermark_color.text(),
+                font_size=self.watermark_size.value(),
+                opacity=self.watermark_opacity.value()
+            )
+        else:
+            watermark_image = self.watermark_image_path.text().strip()
+            if not watermark_image:
+                QMessageBox.warning(self, "警告", "请选择水印图片")
+                return
+            worker = WorkerThread(
+                task_type="watermark",
+                files=files,
+                type_="image",
+                image_path=watermark_image,
+                opacity=self.watermark_image_opacity.value()
+            )
+
+        self.watermark_log.clear()
+        self.watermark_progress.setValue(0)
+
+        worker.log_signal.connect(self.watermark_log.append)
+        worker.progress_signal.connect(self.watermark_progress.setValue)
+        worker.finished.connect(lambda: QMessageBox.information(self, "完成", "水印添加完成"))
+        worker.start()
+
+    def modify_file_time(self):
+        """修改文件时间"""
+        files = self.get_file_list(self.modify_time_input)
+        if not files:
+            QMessageBox.warning(self, "警告", "请先选择文件")
+            return
+
+        create_time = self.create_time_edit.dateTime().toPyDateTime()
+        modify_time = self.modify_time_edit.dateTime().toPyDateTime()
+
+        self.modify_time_log.clear()
+        self.modify_time_progress.setValue(0)
+
+        worker = WorkerThread(
+            task_type="modify_time",
+            files=files,
+            create_time=create_time,
+            modify_time=modify_time
+        )
+        worker.log_signal.connect(self.modify_time_log.append)
+        worker.progress_signal.connect(self.modify_time_progress.setValue)
+        worker.finished.connect(lambda: QMessageBox.information(self, "完成", "时间修改完成"))
+        worker.start()
+
+    def extract_exif(self):
+        """提取EXIF信息"""
+        files = self.get_file_list(self.exif_input)
+        if not files:
+            QMessageBox.warning(self, "警告", "请先选择文件")
+            return
+
+        output = self.exif_output.text().strip()
+        if not output:
+            output = str(files[0].parent / "exif_info.csv")
+
+        self.exif_log.clear()
+        self.exif_progress.setValue(0)
+
+        worker = WorkerThread(
+            task_type="exif",
+            files=files,
+            output=output
+        )
+        worker.log_signal.connect(self.exif_log.append)
+        worker.progress_signal.connect(self.exif_progress.setValue)
+        worker.finished.connect(lambda: QMessageBox.information(self, "完成", "EXIF提取完成"))
+        worker.start()
+
+    def copy_move_files(self):
+        """复制/移动文件"""
+        files = self.get_file_list(self.copy_move_input)
+        if not files:
+            QMessageBox.warning(self, "警告", "请先选择文件")
+            return
+
+        target_dir = self.copy_move_target.text().strip()
+        if not target_dir:
+            QMessageBox.warning(self, "警告", "请选择目标目录")
+            return
+
+        task_type = "move" if self.copy_move_combo.currentIndex() == 1 else "copy"
+
+        self.copy_move_log.clear()
+        self.copy_move_progress.setValue(0)
+
+        worker = WorkerThread(
+            task_type=task_type,
+            files=files,
+            target_dir=target_dir
+        )
+        worker.log_signal.connect(self.copy_move_log.append)
+        worker.progress_signal.connect(self.copy_move_progress.setValue)
+        worker.finished.connect(lambda: QMessageBox.information(self, "完成", "操作完成"))
+        worker.start()
+
 
 
 def run():
-    """主入口函数，供setup.py entry_points调用"""
+    """运行文件批量处理工具"""
     import sys
     from PyQt5.QtWidgets import QApplication
+    from PyQt5.QtCore import Qt
+    
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
+
     app = QApplication(sys.argv)
     window = FileToolMainWindow()
     window.show()
     sys.exit(app.exec_())
-
-
-if __name__ == "__main__":
-    run()
