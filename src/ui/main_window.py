@@ -270,7 +270,7 @@ class FileToolMainWindow(QMainWindow):
                 min-height: 200px;
             }
         """)
-        self.chat_history.setText("🤖 你好！我是您的文件处理助手。
+        self.chat_history.setText("""🤖 你好！我是您的文件处理助手。
 
 操作步骤：
 1️⃣ 选择文件（拖拽或点击按钮）
@@ -283,7 +283,7 @@ class FileToolMainWindow(QMainWindow):
 - 按扩展名分类文件
 - 提取图片EXIF信息
 
-💡 提示：如果您有OpenAI API Key，可以在上方输入以启用更智能的AI解析功能。")
+💡 提示：如果您有OpenAI API Key，可以在上方输入以启用更智能的AI解析功能。""")
         
         chat_layout.addWidget(self.chat_history)
         ai_layout.addWidget(chat_container)
@@ -305,17 +305,12 @@ class FileToolMainWindow(QMainWindow):
         """)
         
         commands = self.ai_assistant.get_supported_commands()
-        hint_content = "我可以帮您完成以下任务：
-
-"
+        hint_content = "我可以帮您完成以下任务：\n\n"
         for cmd in commands:
-            hint_content += f"• {cmd['description']}
-"
+            hint_content += f"• {cmd['description']}\n"
             for example in cmd['examples'][:2]:
-                hint_content += f"  - {example}
-"
-            hint_content += "
-"
+                hint_content += f"  - {example}\n"
+            hint_content += "\n"
         
         hint_text.setText(hint_content)
         hint_layout.addWidget(hint_text)

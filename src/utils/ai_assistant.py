@@ -175,7 +175,7 @@ class AIAssistant:
 - description: 命令描述
 - params: 参数对象（根据命令类型添加必要参数）
 
-如果无法识别命令，请返回: {"command": null, "description": "无法识别", "params": {}}
+如果无法识别命令，请返回: {{"command": null, "description": "无法识别", "params": {{}}}}
 
 示例输出:
 {{"command": "convert", "description": "图片格式转换", "params": {{"to_format": "webp"}}}}
