@@ -169,11 +169,47 @@ class FileToolMainWindow(QMainWindow):
         api_layout.addStretch()
         layout.addWidget(api_group)
 
+        file_group = QGroupBox("📁 选择文件")
+        file_layout = QVBoxLayout(file_group)
+        file_layout.setSpacing(12)
+        
+        ai_file_input_layout = QHBoxLayout()
+        self.ai_file_input = DragDropLineEdit()
+        self.ai_file_input.setPlaceholderText("拖拽文件或文件夹到这里，或点击下方按钮选择")
+        ai_file_input_layout.addWidget(self.ai_file_input)
+        
+        ai_select_file_btn = QPushButton("选择文件")
+        ai_select_file_btn.clicked.connect(lambda: self.select_files(self.ai_file_input))
+        ai_select_file_btn.setStyleSheet("""
+            QPushButton {
+                background: #4299e1;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: #3182ce;
+            }
+        """)
+        ai_file_input_layout.addWidget(ai_select_file_btn)
+        
+        file_layout.addLayout(ai_file_input_layout)
+        
+        self.ai_auto_execute_checkbox = QCheckBox("自动执行操作（解析后直接执行，无需手动确认）")
+        self.ai_auto_execute_checkbox.setChecked(True)
+        self.ai_auto_execute_checkbox.setStyleSheet("font-size: 13px;")
+        file_layout.addWidget(self.ai_auto_execute_checkbox)
+        
+        layout.addWidget(file_group)
+
         ai_group = QGroupBox("🤖 AI 智能助手")
         ai_layout = QVBoxLayout(ai_group)
         ai_layout.setSpacing(16)
 
-        desc_label = QLabel("用自然语言告诉我要做什么，我来帮您自动完成！")
+        desc_label = QLabel("选择文件，告诉我要做什么，我来帮您自动完成！")
         desc_label.setStyleSheet("color: #4a5568; font-size: 14px;")
         ai_layout.addWidget(desc_label)
 
@@ -236,13 +272,16 @@ class FileToolMainWindow(QMainWindow):
         """)
         self.chat_history.setText("🤖 你好！我是您的文件处理助手。
 
-请告诉我您想做什么，例如：
+操作步骤：
+1️⃣ 选择文件（拖拽或点击按钮）
+2️⃣ 告诉我要做什么
+3️⃣ 我会自动完成！
+
+例如：
 - 把图片转换成webp格式
 - 给图片加水印
 - 按扩展名分类文件
 - 提取图片EXIF信息
-
-您可以先选择文件，然后告诉我要执行什么操作。
 
 💡 提示：如果您有OpenAI API Key，可以在上方输入以启用更智能的AI解析功能。")
         
@@ -319,58 +358,200 @@ class FileToolMainWindow(QMainWindow):
         if parsed:
             self.execute_ai_command(parsed)
     def execute_ai_command(self, command):
-        """执行AI解析的命令"""
+        """执行AI解析的命令 - 直接执行操作而非仅跳转"""
         cmd_type = command['command']
         params = command['params']
         
+        # 获取用户选择的文件
+        ai_files = self.get_file_list(self.ai_file_input)
+        if not ai_files:
+            self.chat_history.append("\n⚠️ 提示：请先选择要处理的文件")
+            return
+        
+        # 检查是否自动执行
+        auto_execute = self.ai_auto_execute_checkbox.isChecked()
+        
         if cmd_type == 'convert':
             target_format = params.get('to_format', 'webp')
-            self.tab_widget.setCurrentIndex(2)
-            self.convert_to_format.setCurrentText(target_format.upper())
-            self.chat_history.append(f"\n✅ 已切换到图片转换功能，目标格式：{target_format}")
+            if auto_execute:
+                self.chat_history.append(f"\n🚀 开始执行：图片转换为 {target_format}")
+                worker = WorkerThread(
+                    task_type='convert',
+                    files=ai_files,
+                    to_format=target_format
+                )
+                worker.log_signal.connect(self.chat_history.append)
+                worker.progress_signal.connect(lambda x: None)
+                worker.finished.connect(lambda: self.chat_history.append("\n✅ 图片转换完成！"))
+                worker.start()
+            else:
+                self.tab_widget.setCurrentIndex(2)
+                self.convert_to_format.setCurrentText(target_format.upper())
+                self.convert_input.setText(self.ai_file_input.text())
+                self.chat_history.append(f"\n✅ 已切换到图片转换功能，目标格式：{target_format}")
             
         elif cmd_type == 'watermark':
-            self.tab_widget.setCurrentIndex(5)
-            self.chat_history.append("\n✅ 已切换到图片水印功能")
+            watermark_type = params.get('type', 'text')
+            watermark_content = params.get('content', '© Watermark')
+            if auto_execute:
+                self.chat_history.append(f"\n🚀 开始执行：添加{watermark_type}水印")
+                if watermark_type == 'text':
+                    worker = WorkerThread(
+                        task_type='watermark',
+                        files=ai_files,
+                        type_='text',
+                        content=watermark_content,
+                        color='#FFFFFF',
+                        font_size=24,
+                        opacity=50
+                    )
+                else:
+                    worker = WorkerThread(
+                        task_type='watermark',
+                        files=ai_files,
+                        type_='image',
+                        image_path='',
+                        opacity=50
+                    )
+                worker.log_signal.connect(self.chat_history.append)
+                worker.progress_signal.connect(lambda x: None)
+                worker.finished.connect(lambda: self.chat_history.append("\n✅ 水印添加完成！"))
+                worker.start()
+            else:
+                self.tab_widget.setCurrentIndex(5)
+                self.watermark_input.setText(self.ai_file_input.text())
+                self.chat_history.append("\n✅ 已切换到图片水印功能")
             
         elif cmd_type == 'rename':
-            self.tab_widget.setCurrentIndex(1)
-            if 'prefix' in params:
-                self.rename_prefix.setText(params['prefix'])
-            if 'suffix' in params:
-                self.rename_suffix.setText(params['suffix'])
-            self.chat_history.append("\n✅ 已切换到批量重命名功能")
+            prefix = params.get('prefix', '')
+            suffix = params.get('suffix', '')
+            if auto_execute:
+                self.chat_history.append("\n🚀 开始执行：批量重命名")
+                worker = WorkerThread(
+                    task_type='rename',
+                    files=ai_files,
+                    prefix=prefix,
+                    suffix=suffix,
+                    start_num=1,
+                    num_digits=3
+                )
+                worker.log_signal.connect(self.chat_history.append)
+                worker.progress_signal.connect(lambda x: None)
+                worker.finished.connect(lambda: self.chat_history.append("\n✅ 文件重命名完成！"))
+                worker.start()
+            else:
+                self.tab_widget.setCurrentIndex(1)
+                self.rename_input.setText(self.ai_file_input.text())
+                if prefix:
+                    self.rename_prefix.setText(prefix)
+                if suffix:
+                    self.rename_suffix.setText(suffix)
+                self.chat_history.append("\n✅ 已切换到批量重命名功能")
             
         elif cmd_type == 'classify':
             by_type = params.get('by_type', 'extension')
-            self.tab_widget.setCurrentIndex(4)
-            if by_type == 'date':
-                self.classify_by_combo.setCurrentIndex(1)
+            if auto_execute:
+                self.chat_history.append(f"\n🚀 开始执行：按{by_type}分类文件")
+                worker = WorkerThread(
+                    task_type='classify',
+                    files=ai_files,
+                    by_type=by_type,
+                    output=str(ai_files[0].parent / 'classified')
+                )
+                worker.log_signal.connect(self.chat_history.append)
+                worker.progress_signal.connect(lambda x: None)
+                worker.finished.connect(lambda: self.chat_history.append("\n✅ 文件分类完成！"))
+                worker.start()
             else:
-                self.classify_by_combo.setCurrentIndex(0)
-            self.chat_history.append("\n✅ 已切换到文件分类功能")
+                self.tab_widget.setCurrentIndex(4)
+                self.classify_input.setText(self.ai_file_input.text())
+                if by_type == 'date':
+                    self.classify_by_combo.setCurrentIndex(1)
+                else:
+                    self.classify_by_combo.setCurrentIndex(0)
+                self.chat_history.append("\n✅ 已切换到文件分类功能")
             
         elif cmd_type == 'exif':
-            self.tab_widget.setCurrentIndex(7)
-            self.chat_history.append("\n✅ 已切换到EXIF提取功能")
+            if auto_execute:
+                self.chat_history.append("\n🚀 开始执行：提取EXIF信息")
+                output_path = str(ai_files[0].parent / 'exif_info.csv')
+                worker = WorkerThread(
+                    task_type='exif',
+                    files=ai_files,
+                    output=output_path
+                )
+                worker.log_signal.connect(self.chat_history.append)
+                worker.progress_signal.connect(lambda x: None)
+                worker.finished.connect(lambda: self.chat_history.append(f"\n✅ EXIF信息提取完成！保存到：{output_path}"))
+                worker.start()
+            else:
+                self.tab_widget.setCurrentIndex(7)
+                self.exif_input.setText(self.ai_file_input.text())
+                self.chat_history.append("\n✅ 已切换到EXIF提取功能")
             
         elif cmd_type == 'compress':
-            self.tab_widget.setCurrentIndex(3)
-            self.chat_history.append("\n✅ 已切换到文件压缩功能")
+            if auto_execute:
+                self.chat_history.append("\n🚀 开始执行：文件压缩")
+                output_zip = str(ai_files[0].parent / 'compressed.zip')
+                worker = WorkerThread(
+                    task_type='compress',
+                    files=ai_files,
+                    output=output_zip
+                )
+                worker.log_signal.connect(self.chat_history.append)
+                worker.progress_signal.connect(lambda x: None)
+                worker.finished.connect(lambda: self.chat_history.append(f"\n✅ 文件压缩完成！保存到：{output_zip}"))
+                worker.start()
+            else:
+                self.tab_widget.setCurrentIndex(3)
+                self.compress_input.setText(self.ai_file_input.text())
+                self.chat_history.append("\n✅ 已切换到文件压缩功能")
             
         elif cmd_type == 'copy' or cmd_type == 'move':
-            self.tab_widget.setCurrentIndex(8)
-            if cmd_type == 'move':
-                self.copy_move_combo.setCurrentIndex(1)
+            target_dir = params.get('target_dir', '')
+            if auto_execute:
+                if not target_dir:
+                    target_dir = str(ai_files[0].parent / 'copied')
+                self.chat_history.append(f"\n🚀 开始执行：{cmd_type}文件到 {target_dir}")
+                worker = WorkerThread(
+                    task_type=cmd_type,
+                    files=ai_files,
+                    target_dir=target_dir
+                )
+                worker.log_signal.connect(self.chat_history.append)
+                worker.progress_signal.connect(lambda x: None)
+                worker.finished.connect(lambda: self.chat_history.append(f"\n✅ 文件{cmd_type}完成！"))
+                worker.start()
             else:
-                self.copy_move_combo.setCurrentIndex(0)
-            if 'target_dir' in params:
-                self.copy_move_target.setText(params['target_dir'])
-            self.chat_history.append("\n✅ 已切换到批量复制/移动功能")
+                self.tab_widget.setCurrentIndex(8)
+                self.copy_move_input.setText(self.ai_file_input.text())
+                if cmd_type == 'move':
+                    self.copy_move_combo.setCurrentIndex(1)
+                else:
+                    self.copy_move_combo.setCurrentIndex(0)
+                if target_dir:
+                    self.copy_move_target.setText(target_dir)
+                self.chat_history.append("\n✅ 已切换到批量复制/移动功能")
             
         elif cmd_type == 'modify_time':
-            self.tab_widget.setCurrentIndex(6)
-            self.chat_history.append("\n✅ 已切换到修改文件时间功能")
+            if auto_execute:
+                self.chat_history.append("\n🚀 开始执行：修改文件时间")
+                from datetime import datetime
+                current_time = datetime.now()
+                worker = WorkerThread(
+                    task_type='modify_time',
+                    files=ai_files,
+                    create_time=current_time,
+                    modify_time=current_time
+                )
+                worker.log_signal.connect(self.chat_history.append)
+                worker.progress_signal.connect(lambda x: None)
+                worker.finished.connect(lambda: self.chat_history.append("\n✅ 文件时间修改完成！"))
+                worker.start()
+            else:
+                self.tab_widget.setCurrentIndex(6)
+                self.modify_time_input.setText(self.ai_file_input.text())
+                self.chat_history.append("\n✅ 已切换到修改文件时间功能")
 
     def get_stylesheet(self):
         return """
