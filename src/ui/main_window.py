@@ -128,6 +128,8 @@ class FileToolMainWindow(QMainWindow):
         self.init_modify_time_tab()
         self.init_extract_exif_tab()
         self.init_copy_move_tab()
+        
+        self.showMaximized()
 
     def init_ai_tab(self):
         """AI智能助手界面"""
