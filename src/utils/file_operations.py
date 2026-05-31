@@ -154,6 +154,16 @@ def batch_rename(dir_path, prefix="", suffix="", find_str="", replace_str="", lo
     return rename_count > 0
 
 def batch_convert_image(dir_path, to_format, log_callback=None):
+    """批量转换图片格式
+    
+    Args:
+        dir_path (str): 目录路径或文件列表字符串
+        to_format (str): 目标格式（jpg/jpeg/png/webp）
+        log_callback (function, optional): 日志回调函数
+        
+    Returns:
+        bool: 操作是否成功
+    """
     SUPPORT_FORMATS = {"jpg", "jpeg", "png", "webp"}
     target_format = to_format.lower()
     if target_format == "jpg":
