@@ -1,21 +1,6 @@
-from .ui.main_window import FileToolMainWindow, run
-from .core.worker import WorkerThread
-from .utils.file_operations import (
-    batch_rename, batch_convert_image, batch_compress,
-    batch_classify, batch_watermark, batch_modify_file_time,
-    batch_extract_exif, batch_copy_move
-)
+"""文件批量处理工具 - 源文件包
+包含所有源代码模块
+"""
 
-__all__ = [
-    "FileToolMainWindow",
-    "run",
-    "WorkerThread",
-    "batch_rename",
-    "batch_convert_image",
-    "batch_compress",
-    "batch_classify",
-    "batch_watermark",
-    "batch_modify_file_time",
-    "batch_extract_exif",
-    "batch_copy_move"
-]
+__version__ = "1.2.0"
+__author__ = "the-life"
