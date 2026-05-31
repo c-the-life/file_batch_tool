@@ -46,11 +46,12 @@ def safe_log(msg: str, log_callback: Optional[Callable[[str], None]] = None) -> 
         else:
             print(msg)
 
-def parse_input_path(input_path: str) -> Tuple[List[Path], str]:
+def parse_input_path(input_path: str, recursive: bool = True) -> Tuple[List[Path], str]:
     """解析输入路径，支持单个文件、目录、多个文件（仅筛选文件，排除目录）
     
     Args:
         input_path: 输入路径字符串
+        recursive: 是否递归子目录（默认True）
         
     Returns:
         tuple: (file_list, type) 其中：
@@ -70,12 +71,20 @@ def parse_input_path(input_path: str) -> Tuple[List[Path], str]:
                     if p.is_file():
                         file_list.append(p)
                     elif p.is_dir():
-                        for f in p.iterdir():
-                            try:
-                                if f.is_file():
-                                    file_list.append(f)
-                            except (PermissionError, OSError):
-                                continue
+                        if recursive:
+                            for f in p.rglob("*"):
+                                try:
+                                    if f.is_file():
+                                        file_list.append(f)
+                                except (PermissionError, OSError):
+                                    continue
+                        else:
+                            for f in p.iterdir():
+                                try:
+                                    if f.is_file():
+                                        file_list.append(f)
+                                except (PermissionError, OSError):
+                                    continue
                 except (PermissionError, OSError):
                     continue
             return file_list, "multiple"
@@ -85,12 +94,20 @@ def parse_input_path(input_path: str) -> Tuple[List[Path], str]:
                 return [path_obj], "single"
             elif path_obj.is_dir():
                 file_list = []
-                for f in path_obj.iterdir():
-                    try:
-                        if f.is_file():
-                            file_list.append(f)
-                    except (PermissionError, OSError):
-                        continue
+                if recursive:
+                    for f in path_obj.rglob("*"):
+                        try:
+                            if f.is_file():
+                                file_list.append(f)
+                        except (PermissionError, OSError):
+                            continue
+                else:
+                    for f in path_obj.iterdir():
+                        try:
+                            if f.is_file():
+                                file_list.append(f)
+                        except (PermissionError, OSError):
+                            continue
                 return file_list, "dir"
             else:
                 return [], "invalid"
