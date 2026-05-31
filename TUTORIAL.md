@@ -445,6 +445,252 @@ def test_batch_rename(tmp_path):
 
 ---
 
+## 7. 常见错误处理
+
+### 7.1 文件操作错误
+
+#### 错误1：PermissionError（权限不足）
+
+**错误信息：**
+```
+PermissionError: [WinError 5] 拒绝访问: 'xxx.jpg'
+```
+
+**解决方案：**
+```python
+from file_batch_tool import batch_rename
+
+# 方法1：关闭占用文件的程序
+# 先确保文件没有被打开
+
+# 方法2：以管理员权限运行程序（Windows）
+# 右键点击命令行 → 以管理员身份运行
+
+# 方法3：在代码中添加异常处理
+try:
+    batch_rename("./photos", prefix="new_")
+except PermissionError as e:
+    print(f"权限错误：{e}")
+    print("请关闭占用文件的程序，或以管理员身份运行")
+```
+
+#### 错误2：FileNotFoundError（文件不存在）
+
+**错误信息：**
+```
+FileNotFoundError: [WinError 2] 系统找不到指定的文件: 'xxx.jpg'
+```
+
+**解决方案：**
+```python
+from file_batch_tool import batch_rename
+from pathlib import Path
+
+def safe_batch_rename(dir_path, **kwargs):
+    """安全的批量重命名"""
+    if not Path(dir_path).exists():
+        print(f"错误：目录不存在 - {dir_path}")
+        return False
+    
+    # 检查目录中是否有文件
+    files = list(Path(dir_path).iterdir())
+    if not files:
+        print(f"警告：目录为空 - {dir_path}")
+        return False
+    
+    batch_rename(dir_path, **kwargs)
+    return True
+
+# 使用
+safe_batch_rename("./photos", prefix="new_")
+```
+
+#### 错误3：UnicodeEncodeError（编码错误）
+
+**错误信息：**
+```
+UnicodeEncodeError: 'gbk' codec can't encode character
+```
+
+**解决方案：**
+```python
+# 方法1：在代码开头设置编码
+import sys
+if sys.platform == 'win32':
+    # 尝试设置标准输出编码
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+# 方法2：使用项目内置的安全日志函数
+from file_batch_tool import safe_log
+
+safe_log("处理包含特殊字符的文件名: 📷照片.jpg")
+```
+
+### 7.2 图片处理错误
+
+#### 错误1：UnidentifiedImageError（无法识别图片）
+
+**错误信息：**
+```
+PIL.UnidentifiedImageError: cannot identify image file
+```
+
+**解决方案：**
+```python
+from file_batch_tool import batch_convert_image
+
+try:
+    batch_convert_image("./images", to_format="webp")
+except Exception as e:
+    print(f"图片处理错误：{e}")
+    print("提示：请确保所有文件都是有效的图片格式")
+```
+
+#### 错误2：OSError（文件损坏）
+
+**错误信息：**
+```
+OSError: image file is truncated
+```
+
+**解决方案：**
+```python
+from PIL import Image, ImageFile
+import os
+from pathlib import Path
+
+# 启用损坏文件处理
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+def repair_images(dir_path):
+    """尝试修复损坏的图片"""
+    for img_path in Path(dir_path).glob("*.jpg"):
+        try:
+            with Image.open(img_path) as img:
+                img.save(img_path)  # 重新保存以修复
+                print(f"已修复: {img_path.name}")
+        except Exception as e:
+            print(f"无法修复: {img_path.name}, 错误: {e}")
+```
+
+### 7.3 依赖安装错误
+
+#### 错误1：PyQt5 安装失败
+
+**错误信息：**
+```
+ERROR: Could not build wheels for PyQt5
+```
+
+**解决方案：**
+```bash
+# 方法1：尝试安装预编译版本
+pip install PyQt5==5.15.9
+
+# 方法2：使用 conda 安装（推荐）
+conda install pyqt
+
+# 方法3：Linux用户安装系统依赖
+sudo apt-get install libgl1-mesa-glx libegl1
+```
+
+#### 错误2：Pillow 安装失败
+
+**解决方案：**
+```bash
+# 升级 pip 和 setuptools
+pip install --upgrade pip setuptools wheel
+
+# 重新安装 Pillow
+pip install --force-reinstall Pillow>=10.0.0
+```
+
+### 7.4 最佳实践：统一错误处理
+
+```python
+"""
+完整的错误处理示例
+"""
+from file_batch_tool import (
+    batch_rename,
+    batch_convert_image,
+    safe_log
+)
+from pathlib import Path
+from typing import Callable, Optional
+
+def robust_process(
+    dir_path: str,
+    process_func: Callable,
+    func_name: str = "处理",
+    **kwargs
+) -> bool:
+    """
+    健壮的文件处理函数
+    
+    Args:
+        dir_path: 目录路径
+        process_func: 处理函数
+        func_name: 函数名称（用于日志）
+        **kwargs: 传递给处理函数的参数
+    
+    Returns:
+        是否成功
+    """
+    dir_p = Path(dir_path)
+    
+    # 前置检查
+    if not dir_p.exists():
+        safe_log(f"❌ 错误：目录不存在 - {dir_path}")
+        return False
+    
+    if not dir_p.is_dir():
+        safe_log(f"❌ 错误：不是目录 - {dir_path}")
+        return False
+    
+    # 检查是否有文件
+    file_count = len(list(dir_p.iterdir()))
+    if file_count == 0:
+        safe_log(f"⚠️ 警告：目录为空 - {dir_path}")
+        return False
+    
+    safe_log(f"📂 开始{func_name}，共 {file_count} 个文件")
+    
+    # 执行处理
+    try:
+        process_func(dir_path, **kwargs)
+        safe_log(f"✅ {func_name}完成！")
+        return True
+    except PermissionError as e:
+        safe_log(f"❌ 权限错误：{e}")
+        safe_log("💡 请关闭占用文件的程序，或以管理员身份运行")
+        return False
+    except Exception as e:
+        safe_log(f"❌ {func_name}失败：{e}")
+        return False
+
+# 使用示例
+if __name__ == "__main__":
+    # 批量重命名
+    robust_process(
+        "./photos",
+        batch_rename,
+        "批量重命名",
+        prefix="processed_"
+    )
+    
+    # 格式转换
+    robust_process(
+        "./photos",
+        batch_convert_image,
+        "格式转换",
+        to_format="webp"
+    )
+```
+
+---
+
 ## 总结
 
 现在您已经知道：
@@ -454,5 +700,8 @@ def test_batch_rename(tmp_path):
 3. ✅ 如何依赖其他项目
 4. ✅ 如何发布自己的库
 5. ✅ 如何让其他项目依赖你
+6. ✅ 如何处理常见错误
+7. ✅ 最佳实践和代码规范
 
 开始编码吧！🚀
+
