@@ -2,7 +2,11 @@
 提供异步文件处理任务执行功能
 """
 import traceback
+
+# PyQt5 相关导入
 from PyQt5.QtCore import QThread, pyqtSignal
+
+# 项目内部模块导入
 from src.utils import file_operations
 
 class WorkerThread(QThread):
