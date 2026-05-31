@@ -5,6 +5,7 @@
 - 文件操作工具函数
 - 批量处理函数
 - AI智能助手类
+- 日志配置功能
 
 所有函数都支持自定义日志回调和进度显示。
 """
@@ -25,6 +26,8 @@ from .file_operations import (
 
 from .ai_assistant import AIAssistant
 
+from .logger import setup_logger, get_logger
+
 __all__ = [
     "safe_log",
     "parse_input_path",
@@ -38,6 +41,8 @@ __all__ = [
     "batch_extract_exif",
     "batch_copy_move",
     "AIAssistant",
+    "setup_logger",
+    "get_logger",
 ]
 
 # 模块元数据
