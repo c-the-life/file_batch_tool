@@ -461,6 +461,16 @@ def batch_modify_file_time(dir_path, target_time, time_type="both", log_callback
     return True
 
 def batch_extract_exif(dir_path, output_csv, log_callback=None):
+    """批量提取图片EXIF信息
+    
+    Args:
+        dir_path (str): 目录路径或文件列表字符串
+        output_csv (str): 输出CSV文件路径
+        log_callback (function, optional): 日志回调函数
+        
+    Returns:
+        bool: 操作是否成功
+    """
     SUPPORT_FORMATS = {"jpg", "jpeg", "png", "webp"}
     all_files, input_type = parse_input_path(dir_path)
     if input_type == "invalid":
