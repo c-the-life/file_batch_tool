@@ -409,6 +409,17 @@ def batch_watermark(dir_path, type_, content="", font="", size=24, color="(255,2
     return True
 
 def batch_modify_file_time(dir_path, target_time, time_type="both", log_callback=None):
+    """批量修改文件时间
+    
+    Args:
+        dir_path (str): 目录路径或文件列表字符串
+        target_time (datetime): 目标时间
+        time_type (str, optional): 时间类型（both:同时修改创建和修改时间，create:仅创建时间，modify:仅修改时间）
+        log_callback (function, optional): 日志回调函数
+        
+    Returns:
+        bool: 操作是否成功
+    """
     file_list, input_type = parse_input_path(dir_path)
     if input_type == "invalid" or not file_list:
         return False
