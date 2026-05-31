@@ -15,9 +15,10 @@ class WorkerThread(QThread):
     
     提供异步文件处理任务执行功能，支持进度和日志回调
     """
-    log_signal = pyqtSignal(str)
-    progress_signal = pyqtSignal(int)
-    finish_signal = pyqtSignal(bool)
+    # 信号定义：用于线程与主线程通信
+    log_signal = pyqtSignal(str)       # 日志信号，传递日志消息
+    progress_signal = pyqtSignal(int)  # 进度信号，传递进度值(0-100)
+    finish_signal = pyqtSignal(bool)   # 完成信号，传递是否成功
 
     # 1. 建立任务类型与底层函数的自动映射关系
     # 键名为 task_type，键值为 file_operations 里的对应函数名
