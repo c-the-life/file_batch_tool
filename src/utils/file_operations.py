@@ -260,6 +260,16 @@ def batch_compress(dir_path, output="", exclude="", log_callback=None):
     return True
 
 def batch_classify(dir_path, mode, log_callback=None):
+    """批量分类文件
+    
+    Args:
+        dir_path (str): 目录路径或文件列表字符串
+        mode (str): 分类模式（ext:按扩展名，date:按日期）
+        log_callback (function, optional): 日志回调函数
+        
+    Returns:
+        bool: 操作是否成功
+    """
     file_list, input_type = parse_input_path(dir_path)
     if input_type == "invalid" or not file_list:
         safe_log("Error: 无效路径或未找到文件", log_callback)
