@@ -1,8 +1,12 @@
 """文件批量处理工具 - 安装配置文件
 用于打包和发布到 PyPI
+
+这个配置文件定义了项目的元数据、依赖关系、
+入口点等信息，用于支持 pip 安装和打包。
 """
 from setuptools import setup, find_packages
 
+# 读取README.md作为长描述
 with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
