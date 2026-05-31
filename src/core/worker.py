@@ -1,3 +1,6 @@
+"""工作线程模块
+提供异步文件处理任务执行功能
+"""
 import traceback
 from PyQt5.QtCore import QThread, pyqtSignal
 from src.utils import file_operations
