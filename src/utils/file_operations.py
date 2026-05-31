@@ -1,3 +1,6 @@
+"""文件操作工具模块
+提供批量文件处理、图片操作、压缩、分类等功能
+"""
 import os
 import re
 import sys
