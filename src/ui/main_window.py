@@ -1,8 +1,11 @@
 """主窗口模块
 提供文件批量处理工具的图形用户界面
 """
+# 标准库导入
 import os
 from pathlib import Path
+
+# PyQt5 相关导入
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QTabWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QTextEdit, QComboBox, QFileDialog,
@@ -10,6 +13,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QDateTime, QSize, QMimeData, QThread
 from PyQt5.QtGui import QFont, QPalette, QColor, QIcon, QDragEnterEvent, QDropEvent
+
+# 项目内部模块导入
 from src.core.worker import WorkerThread
 from src.utils.ai_assistant import AIAssistant
 
