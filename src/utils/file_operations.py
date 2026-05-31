@@ -68,7 +68,14 @@ def parse_input_path(input_path):
             return [], "invalid"
 
 def get_unique_path(target_path: Path) -> Path:
-    """生成唯一路径，防止同名冲突（如 file.txt -> file_1.txt）"""
+    """生成唯一路径，防止同名冲突（如 file.txt -> file_1.txt）
+    
+    Args:
+        target_path (Path): 目标路径
+        
+    Returns:
+        Path: 唯一的新路径
+    """
     if not target_path.exists():
         return target_path
     counter = 1
