@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-green.svg)](https://github.com/)
 [![PyPI](https://img.shields.io/pypi/v/file-batch-tool.svg)](https://pypi.org/project/file-batch-tool/)
 
-> 一款基于 PyQt5 的图形化文件批量处理工具，同时也可作为 Python 库被其他项目引用！
+> 一款基于 PyQt5 的图形化文件批量处理工具，同时也可作为 Python 库被其他项目引用！提供 8 大核心功能，包括批量重命名、图片格式转换、文件压缩、文件分类、图片水印、批量修改文件时间、提取EXIF信息和批量复制/移动。
 
 ## 功能清单
 
