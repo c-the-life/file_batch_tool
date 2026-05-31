@@ -1,3 +1,6 @@
+"""主窗口模块
+提供文件批量处理工具的图形用户界面
+"""
 import os
 from pathlib import Path
 from PyQt5.QtWidgets import (
