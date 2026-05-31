@@ -17,7 +17,12 @@ Image.MAX_IMAGE_PIXELS = None
 FILE_LIST_SEPARATOR = "|||"
 
 def safe_log(msg, log_callback=None):
-    """统一的日志输出，处理某些控制台的编码崩溃问题"""
+    """统一的日志输出，处理某些控制台的编码崩溃问题
+    
+    Args:
+        msg (str): 要输出的日志消息
+        log_callback (function, optional): 自定义日志回调函数
+    """
     try:
         if log_callback:
             log_callback(msg)
